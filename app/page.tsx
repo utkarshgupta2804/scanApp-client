@@ -173,21 +173,29 @@ class MockHtml5QrcodeScanner implements MockScanner {
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
 
+let fallbackAttempts = 0;
+
 const getImageUrl = (imageUrl: string | null | undefined): string => {
   if (!imageUrl) {
-    return "/oilpro-premium-service.png"
+    if (fallbackAttempts < 2) {
+      fallbackAttempts++;
+      return "/oilpro-premium-service.png"; 
+    } else {
+      return ""; // after 2 tries, stop returning anything
+    }
   }
 
   if (imageUrl.startsWith("/placeholder.svg") || imageUrl.startsWith("http")) {
-    return imageUrl
+    return imageUrl;
   }
 
   if (imageUrl.startsWith("/uploads")) {
-    return `process.env.Admin_Image_Url${imageUrl}`
+    return `${process.env.Admin_Image_Url}${imageUrl}`;
   }
 
-  return `process.env.Admin_Image_Url${imageUrl}`
-}
+  return `${process.env.Admin_Image_Url}${imageUrl}`;
+};
+
 
 const getSchemeIcon = (title: string) => {
   const titleLower = title.toLowerCase()

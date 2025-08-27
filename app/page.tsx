@@ -171,7 +171,7 @@ class MockHtml5QrcodeScanner implements MockScanner {
 }
 
 // API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL 
 
 let fallbackAttempts = 0;
 
@@ -211,7 +211,7 @@ const getSchemeIcon = (title: string) => {
 
 // API Service with mock fallback
 class ApiService {
-  static async request(endpoint: string, options: RequestInit = {}) {
+  static async request(endpoint: string, options: RequestInit = {}, retries = 2) {
     const url = `${API_BASE_URL}${endpoint}`
 
     const defaultOptions: RequestInit = {
@@ -241,9 +241,16 @@ class ApiService {
       }
 
       return data
-    } catch (error) {
-      // Fallback to mock data for demo purposes
-      console.log(error)
+    } catch (error: any) {
+      console.error(`[v0] Request failed [${endpoint}]:`, error.message)
+
+      if (retries > 0) {
+        console.warn(`[v0] Retrying... attempts left: ${retries}`)
+        return this.request(endpoint, options, retries - 1)
+      }
+
+      // Give frontend a consistent error object
+      throw new Error(error.message || "Network request failed")
     }
   }
 
@@ -296,6 +303,7 @@ class ApiService {
     })
   }
 }
+
 
 export default function OilProClient() {
   const [isSignedIn, setIsSignedIn] = useState(false)

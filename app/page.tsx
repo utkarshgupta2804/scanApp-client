@@ -1235,7 +1235,7 @@ export default function OilProClient() {
             <div className="space-y-4 sm:space-y-6">
               <div
                 id="qr-reader"
-                className="w-full min-h-[250px] sm:min-h-[300px] rounded-xl sm:rounded-2xl overflow-hidden bg-black text-white qr-scanner-container"
+                className="w-full min-h-[250px] sm:min-h-[300px] rounded-xl sm:rounded-2xl overflow-hidden bg-white qr-scanner-container"
               ></div>
 
               <div className="text-center">

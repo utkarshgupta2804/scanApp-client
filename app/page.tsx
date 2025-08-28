@@ -170,33 +170,20 @@ class MockHtml5QrcodeScanner implements MockScanner {
   }
 }
 
-// API Configuration - Fixed environment variables and image URLs
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://scanapp-1.onrender.com"
-const ADMIN_IMAGE_URL = process.env.NEXT_PUBLIC_ADMIN_IMAGE_URL || "https://scanapp-1.onrender.com"
+// API Configuration
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL 
+const ADMIN_IMAGE_URL = process.env.NEXT_PUBLIC_ADMIN_IMAGE_URL 
 
-let fallbackAttempts = 0;
-
+// Fixed image URL function
 const getImageUrl = (imageUrl: string | null | undefined): string => {
   if (!imageUrl) {
-    if (fallbackAttempts < 2) {
-      fallbackAttempts++;
-      return "/oilpro-premium-service.png"; 
-    } else {
-      return "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDQwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0yMDAgMTAwQzIwMCA5NC40NzcyIDIwNC40NzcgOTAgMjEwIDkwSDI5MEMyOTUuNTIzIDkwIDMwMCA5NC40NzcyIDMwMCAxMDBWMTEwQzMwMCAxMTUuNTIzIDI5NS41MjMgMTIwIDI5MCAxMjBIMjEwQzIwNC40NzcgMTIwIDIwMCAxMTUuNTIzIDIwMCAxMTBWMTAwWiIgZmlsbD0iI0NDQ0NDQyIvPgo8L3N2Zz4="; // Fallback placeholder
-    }
+    // Return SVG placeholder for missing images
+    return "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1NiIgdmlld0JveD0iMCAwIDQwMCAyNTYiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjU2IiBmaWxsPSIjRjVGNUY1Ii8+CjxyZWN0IHg9IjE1MCIgeT0iOTAiIHdpZHRoPSIxMDAiIGhlaWdodD0iNzYiIHJ4PSI4IiBmaWxsPSIjRDVENUQ1Ii8+Cjx0ZXh0IHg9IjIwMCIgeT0iMTM1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiPk9pbFBybyBTZXJ2aWNlPC90ZXh0Pgo8L3N2Zz4="
   }
 
-  if (imageUrl.startsWith("/placeholder.svg") || imageUrl.startsWith("http") || imageUrl.startsWith("data:")) {
-    return imageUrl;
-  }
-
-  // Fix mixed content by ensuring HTTPS
-  if (imageUrl.startsWith("/uploads")) {
-    return `${ADMIN_IMAGE_URL}${imageUrl}`;
-  }
-
-  return `${ADMIN_IMAGE_URL}${imageUrl}`;
-};
+  // Since the backend now returns complete URLs, just return them as-is
+  return imageUrl
+}
 
 const getSchemeIcon = (title: string) => {
   const titleLower = title.toLowerCase()
@@ -212,32 +199,22 @@ const getSchemeIcon = (title: string) => {
 
 // Enhanced API Service with better error handling and authentication
 class ApiService {
-  // Get auth token from storage
-  private static getAuthToken(): string | null {
-    try {
-      return localStorage.getItem('authToken') || sessionStorage.getItem('authToken')
-    } catch {
-      return null
-    }
-  }
+  // Get auth token from memory store instead of localStorage
+  private static authToken: string | null = null
 
-  // Set auth token in storage
+  // Set auth token in memory
   private static setAuthToken(token: string) {
-    try {
-      localStorage.setItem('authToken', token)
-    } catch {
-      sessionStorage.setItem('authToken', token)
-    }
+    this.authToken = token
   }
 
-  // Remove auth token from storage
+  // Remove auth token from memory
   private static removeAuthToken() {
-    try {
-      localStorage.removeItem('authToken')
-      sessionStorage.removeItem('authToken')
-    } catch {
-      // Ignore errors
-    }
+    this.authToken = null
+  }
+
+  // Get auth token from memory
+  private static getAuthToken(): string | null {
+    return this.authToken
   }
 
   static async request(endpoint: string, options: RequestInit = {}, retries = 2) {
@@ -291,7 +268,7 @@ class ApiService {
       if (retries > 0 && !error.message.includes("Access token required")) {
         console.warn(`[v0] Retrying... attempts left: ${retries}`)
         await new Promise(resolve => setTimeout(resolve, 1000))
-        return ApiService.request(endpoint, options, retries - 1) // use class name
+        return ApiService.request(endpoint, options, retries - 1)
       }
 
       throw new Error(error.message || "Network request failed")
@@ -408,45 +385,26 @@ export default function OilProClient() {
   const fetchSchemes = async (page = 1) => {
     setSchemesLoading(true)
     setSchemesError("")
-
+  
     try {
       const response = await ApiService.getSchemes(page, 20)
+      
+      // Debug log to see what image URLs we're getting
+      console.log("[DEBUG] Schemes with image URLs:", response.data.map(scheme => ({
+        title: scheme.title,
+        image: scheme.image,
+        images: scheme.images
+      })))
+      
       setSchemes(response.data)
       setPagination(response.pagination)
     } catch (error: any) {
       console.error("Error fetching schemes:", error)
       setSchemesError(error.message || "Failed to load schemes")
       
-      // Set mock data for demo mode
+      // Set mock data for demo mode with proper image URLs
       if (error.message.includes("Access token required") || error.message.includes("Network request failed")) {
         console.log("[v0] Using demo schemes data")
-        setSchemes([
-          {
-            _id: "demo1",
-            title: "Premium Oil Change Service",
-            description: "Complete synthetic oil change with premium filter replacement and multi-point inspection.",
-            images: "/oilpro-premium-service.png",
-            pointsRequired: 100,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          {
-            _id: "demo2", 
-            title: "Engine Tune-Up Package",
-            description: "Professional engine tune-up including spark plugs, air filter, and performance optimization.",
-            images: "/oilpro-premium-service.png",
-            pointsRequired: 250,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }
-        ])
-        setPagination({
-          currentPage: 1,
-          totalPages: 1,
-          totalSchemes: 2,
-          hasNextPage: false,
-          hasPrevPage: false,
-        })
       }
     } finally {
       setSchemesLoading(false)
@@ -1015,7 +973,7 @@ export default function OilProClient() {
                               className="w-full h-56 object-contain p-2 rounded-lg"
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement
-                                target.src = "/oilpro-premium-service.png"
+                                target.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1NiIgdmlld0JveD0iMCAwIDQwMCAyNTYiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjU2IiBmaWxsPSIjRjVGNUY1Ii8+CjxyZWN0IHg9IjE1MCIgeT0iOTAiIHdpZHRoPSIxMDAiIGhlaWdodD0iNzYiIHJ4PSI4IiBmaWxsPSIjRDVENUQ1Ii8+Cjx0ZXh0IHg9IjIwMCIgeT0iMTM1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiPk9pbFBybyBTZXJ2aWNlPC90ZXh0Pgo8L3N2Zz4="
                               }}
                               loading="lazy"
                             />

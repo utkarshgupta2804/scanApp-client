@@ -93,80 +93,90 @@ interface ScanResult {
   }
 }
 
-// Mock QR Scanner since html5-qrcode is not available
-interface MockScanner {
+// Real QR Scanner using html5-qrcode
+interface QRScanner {
   render: (successCallback: (data: string) => void, errorCallback: (error: string) => void) => void
   clear: () => Promise<void>
 }
 
-class MockHtml5QrcodeScanner implements MockScanner {
+class Html5QrcodeScanner implements QRScanner {
   private elementId: string
   private config: any
-  private successCallback?: (data: string) => void
-  private intervalId?: NodeJS.Timeout
+  private scanner: any = null
 
-  constructor(elementId: string, config: any, verbose: boolean) {
+  constructor(elementId: string, config: any, verbose: boolean = false) {
     this.elementId = elementId
     this.config = config
+    
+    // Dynamically import html5-qrcode
+    this.loadScanner()
+  }
+
+  private async loadScanner() {
+    try {
+      // Load html5-qrcode from CDN
+      if (!window.Html5QrcodeScanner) {
+        const script = document.createElement('script')
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js'
+        script.onload = () => {
+          console.log('html5-qrcode loaded successfully')
+        }
+        document.head.appendChild(script)
+        
+        // Wait for script to load
+        await new Promise((resolve) => {
+          script.onload = resolve
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load html5-qrcode:', error)
+    }
   }
 
   render(successCallback: (data: string) => void, errorCallback: (error: string) => void) {
-    this.successCallback = successCallback
-    
-    const element = document.getElementById(this.elementId)
-    if (!element) return
+    try {
+      if (window.Html5QrcodeScanner) {
+        this.scanner = new window.Html5QrcodeScanner(
+          this.elementId,
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+            showTorchButtonIfSupported: true,
+            showZoomSliderIfSupported: true,
+            defaultZoomValueIfSupported: 2,
+            ...this.config
+          },
+          false
+        )
 
-    // Create mock scanner UI
-    element.innerHTML = `
-      <div style="
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-height: 300px;
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border: 2px dashed #FF6F00;
-        border-radius: 16px;
-        color: white;
-        font-family: system-ui;
-      ">
-        <div style="text-align: center; padding: 20px;">
-          <div style="font-size: 48px; margin-bottom: 16px;">📷</div>
-          <h3 style="margin-bottom: 12px; font-size: 18px;">Mock QR Scanner</h3>
-          <p style="color: #B0B0B0; margin-bottom: 20px;">Click button below to simulate QR scan</p>
-          <button id="mock-scan-btn" style="
-            background: #FF6F00;
-            color: #1A1A2E;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-          ">Simulate QR Scan</button>
-        </div>
-      </div>
-    `
-
-    const button = document.getElementById('mock-scan-btn')
-    if (button) {
-      button.addEventListener('click', () => {
-        // Simulate scanning with a mock QR code
-        const mockQRData = `OILPRO_QR_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        setTimeout(() => {
-          successCallback(mockQRData)
-        }, 1000)
-      })
+        this.scanner.render(successCallback, errorCallback)
+      } else {
+        // Fallback if library not loaded
+        setTimeout(() => this.render(successCallback, errorCallback), 1000)
+      }
+    } catch (error) {
+      console.error('QR Scanner render error:', error)
+      errorCallback('Failed to initialize camera scanner')
     }
   }
 
   async clear() {
-    const element = document.getElementById(this.elementId)
-    if (element) {
-      element.innerHTML = ''
+    try {
+      if (this.scanner) {
+        await this.scanner.clear()
+        this.scanner = null
+      }
+    } catch (error) {
+      console.error('QR Scanner clear error:', error)
     }
-    if (this.intervalId) {
-      clearInterval(this.intervalId)
-    }
+  }
+}
+
+// Declare global Html5QrcodeScanner
+declare global {
+  interface Window {
+    Html5QrcodeScanner: any;
   }
 }
 
@@ -426,7 +436,7 @@ export default function OilProClient() {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [scannedData, setScannedData] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const scannerRef = useRef<MockScanner | null>(null)
+  const scannerRef = useRef<QRScanner | null>(null)
   const [forgotPasswordDialog, setForgotPasswordDialog] = useState(false)
   const [forgotPasswordForm, setForgotPasswordForm] = useState<ForgotPasswordForm>({ email: "" })
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
@@ -640,7 +650,7 @@ export default function OilProClient() {
           scannerRef.current.clear().catch(() => { })
         }
 
-        scannerRef.current = new MockHtml5QrcodeScanner(
+        scannerRef.current = new Html5QrcodeScanner(
           "qr-reader",
           {
             fps: 10,
@@ -748,7 +758,7 @@ export default function OilProClient() {
             scannerRef.current.clear().catch(() => { })
           }
 
-          scannerRef.current = new MockHtml5QrcodeScanner(
+          scannerRef.current = new Html5QrcodeScanner(
             "qr-reader",
             {
               fps: 10,

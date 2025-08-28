@@ -170,8 +170,9 @@ class MockHtml5QrcodeScanner implements MockScanner {
   }
 }
 
-// API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL 
+// API Configuration - Fixed environment variables and image URLs
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://scanapp-1.onrender.com"
+const ADMIN_IMAGE_URL = process.env.NEXT_PUBLIC_ADMIN_IMAGE_URL || "https://scanapp-1.onrender.com"
 
 let fallbackAttempts = 0;
 
@@ -181,21 +182,21 @@ const getImageUrl = (imageUrl: string | null | undefined): string => {
       fallbackAttempts++;
       return "/oilpro-premium-service.png"; 
     } else {
-      return ""; // after 2 tries, stop returning anything
+      return "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDQwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0yMDAgMTAwQzIwMCA5NC40NzcyIDIwNC40NzcgOTAgMjEwIDkwSDI5MEMyOTUuNTIzIDkwIDMwMCA5NC40NzcyIDMwMCAxMDBWMTEwQzMwMCAxMTUuNTIzIDI5NS41MjMgMTIwIDI5MCAxMjBIMjEwQzIwNC40NzcgMTIwIDIwMCAxMTUuNTIzIDIwMCAxMTBWMTAwWiIgZmlsbD0iI0NDQ0NDQyIvPgo8L3N2Zz4="; // Fallback placeholder
     }
   }
 
-  if (imageUrl.startsWith("/placeholder.svg") || imageUrl.startsWith("http")) {
+  if (imageUrl.startsWith("/placeholder.svg") || imageUrl.startsWith("http") || imageUrl.startsWith("data:")) {
     return imageUrl;
   }
 
+  // Fix mixed content by ensuring HTTPS
   if (imageUrl.startsWith("/uploads")) {
-    return `${process.env.Admin_Image_Url}${imageUrl}`;
+    return `${ADMIN_IMAGE_URL}${imageUrl}`;
   }
 
-  return `${process.env.Admin_Image_Url}${imageUrl}`;
+  return `${ADMIN_IMAGE_URL}${imageUrl}`;
 };
-
 
 const getSchemeIcon = (title: string) => {
   const titleLower = title.toLowerCase()
@@ -209,14 +210,52 @@ const getSchemeIcon = (title: string) => {
   return Settings
 }
 
-// API Service with mock fallback
+// Enhanced API Service with better error handling and authentication
 class ApiService {
+  // Get auth token from storage
+  private static getAuthToken(): string | null {
+    try {
+      return localStorage.getItem('authToken') || sessionStorage.getItem('authToken')
+    } catch {
+      return null
+    }
+  }
+
+  // Set auth token in storage
+  private static setAuthToken(token: string) {
+    try {
+      localStorage.setItem('authToken', token)
+    } catch {
+      sessionStorage.setItem('authToken', token)
+    }
+  }
+
+  // Remove auth token from storage
+  private static removeAuthToken() {
+    try {
+      localStorage.removeItem('authToken')
+      sessionStorage.removeItem('authToken')
+    } catch {
+      // Ignore errors
+    }
+  }
+
   static async request(endpoint: string, options: RequestInit = {}, retries = 2) {
     const url = `${API_BASE_URL}${endpoint}`
+    const token = this.getAuthToken()
+
+    const defaultHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+    }
+
+    if (token) {
+      defaultHeaders.Authorization = `Bearer ${token}`
+    }
 
     const defaultOptions: RequestInit = {
       headers: {
-        "Content-Type": "application/json",
+        ...defaultHeaders,
+        ...options.headers,
       },
       credentials: "include",
       ...options,
@@ -236,6 +275,11 @@ class ApiService {
         data = { error: text || `HTTP error! status: ${response.status}` }
       }
 
+      if (response.status === 401) {
+        this.removeAuthToken()
+        throw new Error("Access token required")
+      }
+
       if (!response.ok) {
         throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`)
       }
@@ -244,34 +288,55 @@ class ApiService {
     } catch (error: any) {
       console.error(`[v0] Request failed [${endpoint}]:`, error.message)
 
-      if (retries > 0) {
+      if (retries > 0 && !error.message.includes("Access token required")) {
         console.warn(`[v0] Retrying... attempts left: ${retries}`)
-        return this.request(endpoint, options, retries - 1)
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return ApiService.request(endpoint, options, retries - 1) // use class name
       }
 
-      // Give frontend a consistent error object
       throw new Error(error.message || "Network request failed")
     }
   }
 
   static async register(userData: { name: string; city: string; username: string; email: string; password: string }) {
-    return this.request("/register", {
+    const response = await this.request("/register", {
       method: "POST",
       body: JSON.stringify(userData),
     })
+
+    // Store token if provided
+    if (response.token) {
+      this.setAuthToken(response.token)
+    }
+
+    return response
   }
 
   static async login(credentials: { identifier: string; password: string }) {
-    return this.request("/login", {
+    const response = await this.request("/login", {
       method: "POST",
       body: JSON.stringify(credentials),
     })
+
+    // Store token if provided
+    if (response.token) {
+      this.setAuthToken(response.token)
+    }
+
+    return response
   }
 
   static async logout() {
-    return this.request("/logout", {
-      method: "POST",
-    })
+    try {
+      await this.request("/logout", {
+        method: "POST",
+      })
+    } catch (error) {
+      // Continue with logout even if API call fails
+      console.warn("Logout API call failed:", error)
+    } finally {
+      this.removeAuthToken()
+    }
   }
 
   static async forgotPassword(email: string) {
@@ -303,7 +368,6 @@ class ApiService {
     })
   }
 }
-
 
 export default function OilProClient() {
   const [isSignedIn, setIsSignedIn] = useState(false)
@@ -352,6 +416,38 @@ export default function OilProClient() {
     } catch (error: any) {
       console.error("Error fetching schemes:", error)
       setSchemesError(error.message || "Failed to load schemes")
+      
+      // Set mock data for demo mode
+      if (error.message.includes("Access token required") || error.message.includes("Network request failed")) {
+        console.log("[v0] Using demo schemes data")
+        setSchemes([
+          {
+            _id: "demo1",
+            title: "Premium Oil Change Service",
+            description: "Complete synthetic oil change with premium filter replacement and multi-point inspection.",
+            images: "/oilpro-premium-service.png",
+            pointsRequired: 100,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          {
+            _id: "demo2", 
+            title: "Engine Tune-Up Package",
+            description: "Professional engine tune-up including spark plugs, air filter, and performance optimization.",
+            images: "/oilpro-premium-service.png",
+            pointsRequired: 250,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }
+        ])
+        setPagination({
+          currentPage: 1,
+          totalPages: 1,
+          totalSchemes: 2,
+          hasNextPage: false,
+          hasPrevPage: false,
+        })
+      }
     } finally {
       setSchemesLoading(false)
     }
@@ -366,6 +462,8 @@ export default function OilProClient() {
         console.log("[v0] User authenticated:", userData)
       } catch (error) {
         console.log("[v0] User not logged in, using demo mode")
+        setIsSignedIn(false)
+        setUser(null)
       }
     }
 

@@ -202,10 +202,21 @@ class ApiService {
   // Get auth token from memory store instead of localStorage
   private static authToken: string | null = null
 
-  // Set auth token in memory
-  private static setAuthToken(token: string) {
-    this.authToken = token
+// After successful login
+static setAuthToken(token: string): void {
+  console.log("[v0] Setting auth token:", token ? "YES" : "NO");
+  this.authToken = token;
+  
+  // Also store in localStorage as backup
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('token', token);
   }
+  
+  // Set cookie as well for cross-domain
+  if (typeof document !== 'undefined') {
+    document.cookie = `token=${token}; path=/; max-age=604800`; // 7 days
+  }
+}
 
   // Remove auth token from memory
   private static removeAuthToken() {
@@ -214,28 +225,40 @@ class ApiService {
 
 // Get auth token from memory OR cookies
 private static getAuthToken(): string | null {
+  console.log("[v0] Checking for token...");
+  console.log("[v0] Memory token (authToken):", this.authToken ? "EXISTS" : "NULL");
+  
   // First try to get from memory
   if (this.authToken) {
+    console.log("[v0] Using memory token");
     return this.authToken;
   }
   
-  // Fallback to cookies if memory token is not available
+  // Check localStorage
+  if (typeof localStorage !== 'undefined') {
+    const lsToken = localStorage.getItem('token');
+    console.log("[v0] LocalStorage token:", lsToken ? "EXISTS" : "NULL");
+    if (lsToken) {
+      return lsToken;
+    }
+  }
+  
+  // Fallback to cookies
   if (typeof document !== 'undefined') {
+    console.log("[v0] Checking cookies:", document.cookie);
     const cookies = document.cookie.split(';');
     const tokenCookie = cookies.find(cookie => 
       cookie.trim().startsWith('token=')
     );
     
     if (tokenCookie) {
-      return tokenCookie.split('=')[1].trim();
+      const cookieToken = tokenCookie.split('=')[1].trim();
+      console.log("[v0] Found cookie token:", cookieToken ? "EXISTS" : "NULL");
+      return cookieToken;
     }
   }
   
-  // Fallback to localStorage
-  if (typeof localStorage !== 'undefined') {
-    return localStorage.getItem('token');
-  }
-  
+  console.log("[v0] No token found anywhere");
   return null;
 }
 

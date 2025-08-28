@@ -212,68 +212,96 @@ class ApiService {
     this.authToken = null
   }
 
-  // Get auth token from memory
-  private static getAuthToken(): string | null {
-    return this.authToken
+// Get auth token from memory OR cookies
+private static getAuthToken(): string | null {
+  // First try to get from memory
+  if (this.authToken) {
+    return this.authToken;
   }
-
-  static async request(endpoint: string, options: RequestInit = {}, retries = 2) {
-    const url = `${API_BASE_URL}${endpoint}`
-    const token = this.getAuthToken()
-
-    const defaultHeaders: Record<string, string> = {
-      "Content-Type": "application/json",
-    }
-
-    if (token) {
-      defaultHeaders.Authorization = `Bearer ${token}`
-    }
-
-    const defaultOptions: RequestInit = {
-      headers: {
-        ...defaultHeaders,
-        ...options.headers,
-      },
-      credentials: "include",
-      ...options,
-    }
-
-    console.log("[v0] Making request to:", url)
-
-    try {
-      const response = await fetch(url, defaultOptions)
-      let data
-
-      const contentType = response.headers.get("content-type")
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json()
-      } else {
-        const text = await response.text()
-        data = { error: text || `HTTP error! status: ${response.status}` }
-      }
-
-      if (response.status === 401) {
-        this.removeAuthToken()
-        throw new Error("Access token required")
-      }
-
-      if (!response.ok) {
-        throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`)
-      }
-
-      return data
-    } catch (error: any) {
-      console.error(`[v0] Request failed [${endpoint}]:`, error.message)
-
-      if (retries > 0 && !error.message.includes("Access token required")) {
-        console.warn(`[v0] Retrying... attempts left: ${retries}`)
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        return ApiService.request(endpoint, options, retries - 1)
-      }
-
-      throw new Error(error.message || "Network request failed")
+  
+  // Fallback to cookies if memory token is not available
+  if (typeof document !== 'undefined') {
+    const cookies = document.cookie.split(';');
+    const tokenCookie = cookies.find(cookie => 
+      cookie.trim().startsWith('token=')
+    );
+    
+    if (tokenCookie) {
+      return tokenCookie.split('=')[1].trim();
     }
   }
+  
+  // Fallback to localStorage
+  if (typeof localStorage !== 'undefined') {
+    return localStorage.getItem('token');
+  }
+  
+  return null;
+}
+
+static async request(endpoint: string, options: RequestInit = {}, retries: number = 2): Promise<any> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const token = this.getAuthToken();
+
+  const defaultHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  // Set both Authorization header AND ensure cookies are sent
+  if (token) {
+    defaultHeaders.Authorization = `Bearer ${token}`;
+  }
+
+  const defaultOptions: RequestInit = {
+    headers: {
+      ...defaultHeaders,
+      ...options.headers,
+    },
+    credentials: "include", // This ensures cookies are sent
+    ...options,
+  };
+
+  console.log("[v0] Making request to:", url);
+  console.log("[v0] Token being sent:", token ? "YES" : "NO");
+
+  try {
+    const response = await fetch(url, defaultOptions);
+    let data;
+
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      data = { error: text || `HTTP error! status: ${response.status}` };
+    }
+
+    if (response.status === 401) {
+      this.removeAuthToken();
+      // Also clear cookie if exists
+      if (typeof document !== 'undefined') {
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+      }
+      throw new Error("Access token required");
+    }
+
+    if (!response.ok) {
+      throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`);
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error(`[v0] Request failed [${endpoint}]:`, error.message);
+
+    if (retries > 0 && !error.message.includes("Access token required")) {
+      console.warn(`[v0] Retrying... attempts left: ${retries}`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return ApiService.request(endpoint, options, retries - 1);
+    }
+
+    throw new Error(error.message || "Network request failed");
+  }
+}
 
   static async register(userData: { name: string; city: string; username: string; email: string; password: string }) {
     const response = await this.request("/register", {
@@ -388,14 +416,6 @@ export default function OilProClient() {
   
     try {
       const response = await ApiService.getSchemes(page, 20)
-      
-      // Debug log to see what image URLs we're getting
-      console.log("[DEBUG] Schemes with image URLs:", response.data.map(scheme => ({
-        title: scheme.title,
-        image: scheme.image,
-        images: scheme.images
-      })))
-      
       setSchemes(response.data)
       setPagination(response.pagination)
     } catch (error: any) {

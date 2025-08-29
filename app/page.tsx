@@ -137,23 +137,24 @@ class Html5QrcodeScanner implements QRScanner {
         // Mobile-optimized configuration
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
-        this.scanner = new window.Html5QrcodeScanner(
-          this.elementId,
-          {
-            fps: 10,
-            qrbox: isMobile ? { width: 200, height: 200 } : { width: 250, height: 250 },
-            aspectRatio: 1.0,
-            showTorchButtonIfSupported: true,
-            showZoomSliderIfSupported: true,
-            defaultZoomValueIfSupported: 2,
-            // Mobile optimizations
-            facingMode: isMobile ? { exact: "environment" } : undefined, // Use back camera on mobile
-            rememberLastUsedCamera: true,
-            supportedScanTypes: [0, 1], // QR Code and Data Matrix
-            ...this.config,
-          },
-          false,
-        )
+        const config = {
+          fps: 10,
+          qrbox: isMobile ? { width: 200, height: 200 } : { width: 250, height: 250 },
+          aspectRatio: 1.0,
+          showTorchButtonIfSupported: true,
+          showZoomSliderIfSupported: true,
+          defaultZoomValueIfSupported: 2,
+          rememberLastUsedCamera: false, // Changed to false to force back camera
+          supportedScanTypes: [0, 1], // QR Code and Data Matrix
+          ...this.config,
+        }
+
+        // Add camera constraints specifically for mobile
+        if (isMobile) {
+          config.cameraIdOrConfig = { facingMode: "environment" }
+        }
+
+        this.scanner = new window.Html5QrcodeScanner(this.elementId, config, false)
 
         this.scanner.render(successCallback, errorCallback)
       } else {

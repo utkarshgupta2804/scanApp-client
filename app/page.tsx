@@ -1,9 +1,7 @@
-
 "use client"
-
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
@@ -22,9 +20,7 @@ import {
   Gift,
   Users,
   Mail,
-  Lock,
   ArrowLeft,
-  Menu,
 } from "lucide-react"
 
 // Types
@@ -106,7 +102,7 @@ class Html5QrcodeScanner implements QRScanner {
   private config: any
   private scanner: any = null
 
-  constructor(elementId: string, config: any, verbose: boolean = false) {
+  constructor(elementId: string, config: any, verbose = false) {
     this.elementId = elementId
     this.config = config
 
@@ -118,10 +114,10 @@ class Html5QrcodeScanner implements QRScanner {
     try {
       // Load html5-qrcode from CDN
       if (!window.Html5QrcodeScanner) {
-        const script = document.createElement('script')
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js'
+        const script = document.createElement("script")
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
         script.onload = () => {
-          console.log('html5-qrcode loaded successfully')
+          console.log("html5-qrcode loaded successfully")
         }
         document.head.appendChild(script)
 
@@ -131,7 +127,7 @@ class Html5QrcodeScanner implements QRScanner {
         })
       }
     } catch (error) {
-      console.error('Failed to load html5-qrcode:', error)
+      console.error("Failed to load html5-qrcode:", error)
     }
   }
 
@@ -154,9 +150,9 @@ class Html5QrcodeScanner implements QRScanner {
             facingMode: isMobile ? { exact: "environment" } : undefined, // Use back camera on mobile
             rememberLastUsedCamera: true,
             supportedScanTypes: [0, 1], // QR Code and Data Matrix
-            ...this.config
+            ...this.config,
           },
-          false
+          false,
         )
 
         this.scanner.render(successCallback, errorCallback)
@@ -165,8 +161,8 @@ class Html5QrcodeScanner implements QRScanner {
         setTimeout(() => this.render(successCallback, errorCallback), 1000)
       }
     } catch (error) {
-      console.error('QR Scanner render error:', error)
-      errorCallback('Failed to initialize camera scanner')
+      console.error("QR Scanner render error:", error)
+      errorCallback("Failed to initialize camera scanner")
     }
   }
 
@@ -177,7 +173,7 @@ class Html5QrcodeScanner implements QRScanner {
         this.scanner = null
       }
     } catch (error) {
-      console.error('QR Scanner clear error:', error)
+      console.error("QR Scanner clear error:", error)
     }
   }
 }
@@ -185,7 +181,7 @@ class Html5QrcodeScanner implements QRScanner {
 // Declare global Html5QrcodeScanner
 declare global {
   interface Window {
-    Html5QrcodeScanner: any;
+    Html5QrcodeScanner: any
   }
 }
 
@@ -223,17 +219,17 @@ class ApiService {
 
   // After successful login
   static setAuthToken(token: string): void {
-    console.log("[v0] Setting auth token:", token ? "YES" : "NO");
-    this.authToken = token;
+    console.log("[v0] Setting auth token:", token ? "YES" : "NO")
+    this.authToken = token
 
     // Also store in localStorage as backup
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('token', token);
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("token", token)
     }
 
     // Set cookie as well for cross-domain
-    if (typeof document !== 'undefined') {
-      document.cookie = `token=${token}; path=/; max-age=604800`; // 7 days
+    if (typeof document !== "undefined") {
+      document.cookie = `token=${token}; path=/; max-age=604800` // 7 days
     }
   }
 
@@ -244,54 +240,52 @@ class ApiService {
 
   // Get auth token from memory OR cookies
   private static getAuthToken(): string | null {
-    console.log("[v0] Checking for token...");
-    console.log("[v0] Memory token (authToken):", this.authToken ? "EXISTS" : "NULL");
+    console.log("[v0] Checking for token...")
+    console.log("[v0] Memory token (authToken):", this.authToken ? "EXISTS" : "NULL")
 
     // First try to get from memory
     if (this.authToken) {
-      console.log("[v0] Using memory token");
-      return this.authToken;
+      console.log("[v0] Using memory token")
+      return this.authToken
     }
 
     // Check localStorage
-    if (typeof localStorage !== 'undefined') {
-      const lsToken = localStorage.getItem('token');
-      console.log("[v0] LocalStorage token:", lsToken ? "EXISTS" : "NULL");
+    if (typeof localStorage !== "undefined") {
+      const lsToken = localStorage.getItem("token")
+      console.log("[v0] LocalStorage token:", lsToken ? "EXISTS" : "NULL")
       if (lsToken) {
-        return lsToken;
+        return lsToken
       }
     }
 
     // Fallback to cookies
-    if (typeof document !== 'undefined') {
-      console.log("[v0] Checking cookies:", document.cookie);
-      const cookies = document.cookie.split(';');
-      const tokenCookie = cookies.find(cookie =>
-        cookie.trim().startsWith('token=')
-      );
+    if (typeof document !== "undefined") {
+      console.log("[v0] Checking cookies:", document.cookie)
+      const cookies = document.cookie.split(";")
+      const tokenCookie = cookies.find((cookie) => cookie.trim().startsWith("token="))
 
       if (tokenCookie) {
-        const cookieToken = tokenCookie.split('=')[1].trim();
-        console.log("[v0] Found cookie token:", cookieToken ? "EXISTS" : "NULL");
-        return cookieToken;
+        const cookieToken = tokenCookie.split("=")[1].trim()
+        console.log("[v0] Found cookie token:", cookieToken ? "EXISTS" : "NULL")
+        return cookieToken
       }
     }
 
-    console.log("[v0] No token found anywhere");
-    return null;
+    console.log("[v0] No token found anywhere")
+    return null
   }
 
-  static async request(endpoint: string, options: RequestInit = {}, retries: number = 2): Promise<any> {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const token = this.getAuthToken();
+  static async request(endpoint: string, options: RequestInit = {}, retries = 2): Promise<any> {
+    const url = `${API_BASE_URL}${endpoint}`
+    const token = this.getAuthToken()
 
     const defaultHeaders: Record<string, string> = {
       "Content-Type": "application/json",
-    };
+    }
 
     // Set both Authorization header AND ensure cookies are sent
     if (token) {
-      defaultHeaders.Authorization = `Bearer ${token}`;
+      defaultHeaders.Authorization = `Bearer ${token}`
     }
 
     const defaultOptions: RequestInit = {
@@ -301,47 +295,47 @@ class ApiService {
       },
       credentials: "include", // This ensures cookies are sent
       ...options,
-    };
+    }
 
-    console.log("[v0] Making request to:", url);
-    console.log("[v0] Token being sent:", token ? "YES" : "NO");
+    console.log("[v0] Making request to:", url)
+    console.log("[v0] Token being sent:", token ? "YES" : "NO")
 
     try {
-      const response = await fetch(url, defaultOptions);
-      let data;
+      const response = await fetch(url, defaultOptions)
+      let data
 
-      const contentType = response.headers.get("content-type");
+      const contentType = response.headers.get("content-type")
       if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
+        data = await response.json()
       } else {
-        const text = await response.text();
-        data = { error: text || `HTTP error! status: ${response.status}` };
+        const text = await response.text()
+        data = { error: text || `HTTP error! status: ${response.status}` }
       }
 
       if (response.status === 401) {
-        this.removeAuthToken();
+        this.removeAuthToken()
         // Also clear cookie if exists
-        if (typeof document !== 'undefined') {
-          document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+        if (typeof document !== "undefined") {
+          document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/"
         }
-        throw new Error("Access token required");
+        throw new Error("Access token required")
       }
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`);
+        throw new Error(data.error || data.message || `HTTP error! status: ${response.status}`)
       }
 
-      return data;
+      return data
     } catch (error: any) {
-      console.error(`[v0] Request failed [${endpoint}]:`, error.message);
+      console.error(`[v0] Request failed [${endpoint}]:`, error.message)
 
       if (retries > 0 && !error.message.includes("Access token required")) {
-        console.warn(`[v0] Retrying... attempts left: ${retries}`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return ApiService.request(endpoint, options, retries - 1);
+        console.warn(`[v0] Retrying... attempts left: ${retries}`)
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        return ApiService.request(endpoint, options, retries - 1)
       }
 
-      throw new Error(error.message || "Network request failed");
+      throw new Error(error.message || "Network request failed")
     }
   }
 
@@ -590,7 +584,7 @@ export default function OilProClient() {
       username: "",
       email: "",
       password: "",
-      confirmPassword: ""
+      confirmPassword: "",
     })
     setAuthError("")
   }
@@ -656,7 +650,7 @@ export default function OilProClient() {
 
       try {
         if (scannerRef.current) {
-          scannerRef.current.clear().catch(() => { })
+          scannerRef.current.clear().catch(() => {})
         }
 
         scannerRef.current = new Html5QrcodeScanner(
@@ -698,7 +692,7 @@ export default function OilProClient() {
     setScannedData(JSON.stringify(scanMetadata, null, 2))
 
     if (scannerRef.current) {
-      scannerRef.current.clear().catch(() => { })
+      scannerRef.current.clear().catch(() => {})
       scannerRef.current = null
     }
   }
@@ -764,7 +758,7 @@ export default function OilProClient() {
 
         try {
           if (scannerRef.current) {
-            scannerRef.current.clear().catch(() => { })
+            scannerRef.current.clear().catch(() => {})
           }
 
           scannerRef.current = new Html5QrcodeScanner(
@@ -797,7 +791,7 @@ export default function OilProClient() {
 
     return () => {
       if (scannerRef.current) {
-        scannerRef.current.clear().catch(() => { })
+        scannerRef.current.clear().catch(() => {})
         scannerRef.current = null
       }
     }
@@ -828,7 +822,7 @@ export default function OilProClient() {
       setScanResult(null)
       setScannedData(null)
       if (scannerRef.current) {
-        scannerRef.current.clear().catch(() => { })
+        scannerRef.current.clear().catch(() => {})
         scannerRef.current = null
       }
     }
@@ -925,14 +919,14 @@ export default function OilProClient() {
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 sm:space-x-4">
-              <div className="relative">
-                <div className="w-8 h-8 sm:w-12 sm:h-12 bg-[#FF6F00] rounded-lg flex items-center justify-center">
-                  <Droplets className="w-4 h-4 sm:w-6 sm:h-6 text-[#1A1A2E]" />
-                </div>
-              </div>
+              {/* Logo + Company Name */}
+              <img
+                src="/sri-ganesh-logo.jpg"
+                alt="Sri Ganesh Agencies logo"
+                className="h-8 w-8 sm:h-12 sm:w-12 rounded bg-white/5 object-contain"
+              />
               <div>
-                <h1 className="text-lg sm:text-2xl font-bold text-[#FFFFFF]">OilPro</h1>
-                <p className="text-[#B0B0B0] text-xs sm:text-sm hidden sm:block">Premium Services</p>
+                <h1 className="text-lg sm:text-2xl font-bold text-[#FFFFFF]">Sri Ganesh Agencies</h1>
               </div>
             </div>
 
@@ -1036,7 +1030,8 @@ export default function OilProClient() {
                               className="w-full h-32 sm:h-56 object-contain p-2 rounded-lg"
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement
-                                target.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1NiIgdmlld0JveD0iMCAwIDQwMCAyNTYiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjU2IiBmaWxsPSIjRjVGNUY1Ii8+CjxyZWN0IHg9IjE1MCIgeT0iOTAiIHdpZHRoPSIxMDAiIGhlaWdodD0iNzYiIHJ4PSI4IiBmaWxsPSIjRDVENUQ1Ii8+Cjx0ZXh0IHg9IjIwMCIgeT0iMTM1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiPk9pbFBybyBTZXJ2aWNlPC90ZXh0Pgo8L3N2Zz4="
+                                target.src =
+                                  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1NiIgdmlld0JveD0iMCAwIDQwMCAyNTYiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjU2IiBmaWxsPSIjRjVGNUY1Ii8+CjxyZWN0IHg9IjE1MCIgeT0iOTAiIHdpZHRoPSIxMDAiIGhlaWdodD0iNzYiIHJ4PSI4IiBmaWxsPSIjRDVENUQ1Ii8+Cjx0ZXh0IHg9IjIwMCIgeT0iMTM1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiPk9pbFBybyBTZXJ2aWNlPC90ZXh0Pgo8L3N2Zz4="
                               }}
                               loading="lazy"
                             />
@@ -1061,10 +1056,11 @@ export default function OilProClient() {
                           <Button
                             onClick={() => handleRedeem(scheme)}
                             disabled={!isSignedIn || !canRedeem}
-                            className={`w-full rounded-lg font-bold py-2 sm:py-3 text-xs sm:text-sm transition-colors duration-200 ${canRedeem
-                              ? "bg-[#FF6F00] text-white hover:bg-[#00B4D8]"
-                              : "bg-[#B0B0B0] text-white cursor-not-allowed"
-                              }`}
+                            className={`w-full rounded-lg font-bold py-2 sm:py-3 text-xs sm:text-sm transition-colors duration-200 ${
+                              canRedeem
+                                ? "bg-[#FF6F00] text-white hover:bg-[#00B4D8]"
+                                : "bg-[#B0B0B0] text-white cursor-not-allowed"
+                            }`}
                           >
                             {!isSignedIn ? (
                               <div className="flex items-center justify-center space-x-1 sm:space-x-2">
@@ -1115,17 +1111,38 @@ export default function OilProClient() {
         </section>
       </main>
 
-      <footer className="bg-gradient-to-r from-[#1A1A2E] to-[#0f1419] mt-16 sm:mt-32">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-8 sm:py-16">
-          <div className="text-center">
-            <div className="flex items-center justify-center space-x-2 sm:space-x-4 mb-4 sm:mb-8">
-              <div className="w-8 h-8 sm:w-12 sm:h-12 bg-[#FF6F00]/20 rounded-xl sm:rounded-2xl flex items-center justify-center backdrop-blur-sm border border-[#FF6F00]/30">
-                <Droplets className="w-4 h-4 sm:w-6 sm:h-6 text-[#FF6F00]" />
-              </div>
-              <span className="text-lg sm:text-2xl font-bold text-[#FFFFFF]">OilPro</span>
+      <footer className="mt-20 sm:mt-20 border-t border-[#FF6F00]/20 bg-[#1A1A2E]">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 sm:py-10 grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
+          <div className="flex flex-col gap-2">
+            <h3 className="text-[#FFFFFF] font-semibold text-base sm:text-lg">Sri Ganesh Agencies</h3>
+            <p className="text-[#B0B0B0] text-sm leading-relaxed">908, Anand Market, Yamunanagar 135001</p>
+            <a
+              href="https://www.google.com/maps?q=908%20Anand%20Market%20Yamunanagar%20135001"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#FF6F00] text-sm font-medium hover:underline"
+              aria-label="Open location on Google Maps"
+            >
+              View on Google Maps
+            </a>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <h4 className="text-[#FFFFFF] font-semibold text-base sm:text-lg">Contact</h4>
+            <a href="tel:+919896089897" className="text-[#B0B0B0] text-sm hover:text-white">
+              +91 98960 89897
+            </a>
+            <a href="tel:+917015938614" className="text-[#B0B0B0] text-sm hover:text-white">
+              +91 70159 38614
+            </a>
+          </div>
+
+          <div className="flex items-start sm:items-center sm:justify-end">
+            <div className="text-xs sm:text-sm text-[#B0B0B0]">
+              <span className="block sm:text-right">
+                © {new Date().getFullYear()} Sri Ganesh Agencies. All rights reserved.
+              </span>
             </div>
-            <p className="text-[#B0B0B0] mb-4 sm:mb-6 text-sm sm:text-lg font-medium">Premium automotive services and loyalty rewards</p>
-            <p className="text-[#B0B0B0] font-medium text-xs sm:text-base">© 2024 OilPro Wholesale. All rights reserved.</p>
           </div>
         </div>
       </footer>
@@ -1149,17 +1166,25 @@ export default function OilProClient() {
                   <div className="space-y-4 sm:space-y-6">
                     <CheckCircle className="w-16 h-16 sm:w-20 sm:h-20 text-green-500 mx-auto" />
                     <div>
-                      <h3 className="text-lg sm:text-xl font-bold text-green-400 mb-2 sm:mb-3">QR Code Processed Successfully!</h3>
-                      <p className="text-[#B0B0B0] mb-4 sm:mb-6 font-medium text-sm sm:text-base">{scanResult.message}</p>
+                      <h3 className="text-lg sm:text-xl font-bold text-green-400 mb-2 sm:mb-3">
+                        QR Code Processed Successfully!
+                      </h3>
+                      <p className="text-[#B0B0B0] mb-4 sm:mb-6 font-medium text-sm sm:text-base">
+                        {scanResult.message}
+                      </p>
                       {scanResult.data && (
                         <div className="bg-[#FF6F00]/10 p-4 sm:p-6 rounded-xl sm:rounded-2xl space-y-2 sm:space-y-3 border border-[#FF6F00]/20">
                           <div className="flex justify-between items-center">
                             <span className="text-xs sm:text-sm text-[#B0B0B0] font-medium">Points Earned:</span>
-                            <span className="font-bold text-green-400 text-base sm:text-lg">+{scanResult.data.pointsEarned}</span>
+                            <span className="font-bold text-green-400 text-base sm:text-lg">
+                              +{scanResult.data.pointsEarned}
+                            </span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-xs sm:text-sm text-[#B0B0B0] font-medium">Total Points:</span>
-                            <span className="font-bold text-[#FFFFFF] text-base sm:text-lg">{scanResult.data.totalPoints}</span>
+                            <span className="font-bold text-[#FFFFFF] text-base sm:text-lg">
+                              {scanResult.data.totalPoints}
+                            </span>
                           </div>
                         </div>
                       )}
@@ -1173,8 +1198,11 @@ export default function OilProClient() {
                       <XCircle className="w-16 h-16 sm:w-20 sm:h-20 text-[#D32F2F] mx-auto" />
                     )}
                     <div>
-                      <h3 className={`text-lg sm:text-xl font-bold mb-2 sm:mb-3 ${scanResult.errorType === "already_scanned" ? "text-yellow-400" : "text-[#D32F2F]"
-                        }`}>
+                      <h3
+                        className={`text-lg sm:text-xl font-bold mb-2 sm:mb-3 ${
+                          scanResult.errorType === "already_scanned" ? "text-yellow-400" : "text-[#D32F2F]"
+                        }`}
+                      >
                         {scanResult.errorType === "already_scanned" ? "Already Redeemed" : "Error"}
                       </h3>
                       <p className="text-[#B0B0B0] font-medium text-sm sm:text-base">{scanResult.message}</p>
@@ -1191,21 +1219,24 @@ export default function OilProClient() {
                   Close
                 </Button>
 
-                {!scanResult.success && (scanResult.errorType === "already_scanned" || scanResult.errorType === "not_found") && (
-                  <Button
-                    onClick={reinitializeScanner}
-                    className="flex-1 bg-[#FF6F00] text-[#1A1A2E] hover:bg-[#D45D00] border-0 rounded-lg font-bold py-2 sm:py-3 text-sm sm:text-base"
-                  >
-                    Scan Another
-                  </Button>
-                )}
+                {!scanResult.success &&
+                  (scanResult.errorType === "already_scanned" || scanResult.errorType === "not_found") && (
+                    <Button
+                      onClick={reinitializeScanner}
+                      className="flex-1 bg-[#FF6F00] text-[#1A1A2E] hover:bg-[#D45D00] border-0 rounded-lg font-bold py-2 sm:py-3 text-sm sm:text-base"
+                    >
+                      Scan Another
+                    </Button>
+                  )}
               </div>
             </div>
           ) : scannedData ? (
             <div className="space-y-4 sm:space-y-6">
               <div className="text-center">
                 <CheckCircle className="w-12 h-12 sm:w-16 sm:h-16 text-blue-400 mx-auto mb-3 sm:mb-4" />
-                <h3 className="text-lg sm:text-xl font-bold text-[#FFFFFF] mb-2 sm:mb-3">QR Code Scanned Successfully!</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-[#FFFFFF] mb-2 sm:mb-3">
+                  QR Code Scanned Successfully!
+                </h3>
               </div>
               <div className="flex space-x-2 sm:space-x-3">
                 <Button

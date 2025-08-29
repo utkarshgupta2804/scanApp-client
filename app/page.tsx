@@ -651,7 +651,7 @@ export default function OilProClient() {
 
       try {
         if (scannerRef.current) {
-          scannerRef.current.clear().catch(() => {})
+          scannerRef.current.clear().catch(() => { })
         }
 
         scannerRef.current = new Html5QrcodeScanner(
@@ -693,7 +693,7 @@ export default function OilProClient() {
     setScannedData(JSON.stringify(scanMetadata, null, 2))
 
     if (scannerRef.current) {
-      scannerRef.current.clear().catch(() => {})
+      scannerRef.current.clear().catch(() => { })
       scannerRef.current = null
     }
   }
@@ -759,7 +759,7 @@ export default function OilProClient() {
 
         try {
           if (scannerRef.current) {
-            scannerRef.current.clear().catch(() => {})
+            scannerRef.current.clear().catch(() => { })
           }
 
           scannerRef.current = new Html5QrcodeScanner(
@@ -792,7 +792,7 @@ export default function OilProClient() {
 
     return () => {
       if (scannerRef.current) {
-        scannerRef.current.clear().catch(() => {})
+        scannerRef.current.clear().catch(() => { })
         scannerRef.current = null
       }
     }
@@ -823,7 +823,7 @@ export default function OilProClient() {
       setScanResult(null)
       setScannedData(null)
       if (scannerRef.current) {
-        scannerRef.current.clear().catch(() => {})
+        scannerRef.current.clear().catch(() => { })
         scannerRef.current = null
       }
     }
@@ -1057,11 +1057,10 @@ export default function OilProClient() {
                           <Button
                             onClick={() => handleRedeem(scheme)}
                             disabled={!isSignedIn || !canRedeem}
-                            className={`w-full rounded-lg font-bold py-2 sm:py-3 text-xs sm:text-sm transition-colors duration-200 ${
-                              canRedeem
-                                ? "bg-[#FF6F00] text-white hover:bg-[#00B4D8]"
-                                : "bg-[#B0B0B0] text-white cursor-not-allowed"
-                            }`}
+                            className={`w-full rounded-lg font-bold py-2 sm:py-3 text-xs sm:text-sm transition-colors duration-200 ${canRedeem
+                              ? "bg-[#FF6F00] text-white hover:bg-[#00B4D8]"
+                              : "bg-[#B0B0B0] text-white cursor-not-allowed"
+                              }`}
                           >
                             {!isSignedIn ? (
                               <div className="flex items-center justify-center space-x-1 sm:space-x-2">
@@ -1130,12 +1129,20 @@ export default function OilProClient() {
 
           <div className="flex flex-col gap-2">
             <h4 className="text-[#FFFFFF] font-semibold text-base sm:text-lg">Contact</h4>
-            <a href="tel:+919896089897" className="text-[#B0B0B0] text-sm hover:text-white">
+            <a
+              href="tel:+919896089897"
+              className="text-blue-500 text-sm hover:text-white font-bold underline"
+            >
               +91 98960 89897
             </a>
-            <a href="tel:+917015938614" className="text-[#B0B0B0] text-sm hover:text-white">
+            <a
+              href="tel:+917015938614"
+              className="text-blue-500 text-sm hover:text-white font-bold underline"
+            >
               +91 70159 38614
             </a>
+
+
           </div>
 
           <div className="flex items-start sm:items-center sm:justify-end">
@@ -1200,9 +1207,8 @@ export default function OilProClient() {
                     )}
                     <div>
                       <h3
-                        className={`text-lg sm:text-xl font-bold mb-2 sm:mb-3 ${
-                          scanResult.errorType === "already_scanned" ? "text-yellow-400" : "text-[#D32F2F]"
-                        }`}
+                        className={`text-lg sm:text-xl font-bold mb-2 sm:mb-3 ${scanResult.errorType === "already_scanned" ? "text-yellow-400" : "text-[#D32F2F]"
+                          }`}
                       >
                         {scanResult.errorType === "already_scanned" ? "Already Redeemed" : "Error"}
                       </h3>

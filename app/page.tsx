@@ -116,9 +116,6 @@ class Html5QrcodeScanner implements QRScanner {
       if (!window.Html5QrcodeScanner) {
         const script = document.createElement("script")
         script.src = "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
-        script.onload = () => {
-          console.log("html5-qrcode loaded successfully")
-        }
         document.head.appendChild(script)
 
         // Wait for script to load
@@ -220,7 +217,6 @@ class ApiService {
 
   // After successful login
   static setAuthToken(token: string): void {
-    console.log("[v0] Setting auth token:", token ? "YES" : "NO")
     this.authToken = token
 
     // Also store in localStorage as backup
@@ -241,19 +237,14 @@ class ApiService {
 
   // Get auth token from memory OR cookies
   private static getAuthToken(): string | null {
-    console.log("[v0] Checking for token...")
-    console.log("[v0] Memory token (authToken):", this.authToken ? "EXISTS" : "NULL")
-
     // First try to get from memory
     if (this.authToken) {
-      console.log("[v0] Using memory token")
       return this.authToken
     }
 
     // Check localStorage
     if (typeof localStorage !== "undefined") {
       const lsToken = localStorage.getItem("token")
-      console.log("[v0] LocalStorage token:", lsToken ? "EXISTS" : "NULL")
       if (lsToken) {
         return lsToken
       }
@@ -261,18 +252,15 @@ class ApiService {
 
     // Fallback to cookies
     if (typeof document !== "undefined") {
-      console.log("[v0] Checking cookies:", document.cookie)
       const cookies = document.cookie.split(";")
       const tokenCookie = cookies.find((cookie) => cookie.trim().startsWith("token="))
 
       if (tokenCookie) {
         const cookieToken = tokenCookie.split("=")[1].trim()
-        console.log("[v0] Found cookie token:", cookieToken ? "EXISTS" : "NULL")
         return cookieToken
       }
     }
 
-    console.log("[v0] No token found anywhere")
     return null
   }
 
@@ -297,9 +285,6 @@ class ApiService {
       credentials: "include", // This ensures cookies are sent
       ...options,
     }
-
-    console.log("[v0] Making request to:", url)
-    console.log("[v0] Token being sent:", token ? "YES" : "NO")
 
     try {
       const response = await fetch(url, defaultOptions)
@@ -328,10 +313,10 @@ class ApiService {
 
       return data
     } catch (error: any) {
-      console.error(`[v0] Request failed [${endpoint}]:`, error.message)
+      console.error(`Request failed [${endpoint}]:`, error.message)
 
       if (retries > 0 && !error.message.includes("Access token required")) {
-        console.warn(`[v0] Retrying... attempts left: ${retries}`)
+        console.warn(`Retrying... attempts left: ${retries}`)
         await new Promise((resolve) => setTimeout(resolve, 1000))
         return ApiService.request(endpoint, options, retries - 1)
       }
@@ -458,11 +443,6 @@ export default function OilProClient() {
     } catch (error: any) {
       console.error("Error fetching schemes:", error)
       setSchemesError(error.message || "Failed to load schemes")
-
-      // Set mock data for demo mode with proper image URLs
-      if (error.message.includes("Access token required") || error.message.includes("Network request failed")) {
-        console.log("[v0] Using demo schemes data")
-      }
     } finally {
       setSchemesLoading(false)
     }
@@ -474,9 +454,7 @@ export default function OilProClient() {
         const userData = await ApiService.getProfile()
         setUser(userData)
         setIsSignedIn(true)
-        console.log("[v0] User authenticated:", userData)
       } catch (error) {
-        console.log("[v0] User not logged in, using demo mode")
         setIsSignedIn(false)
         setUser(null)
       }

@@ -145,6 +145,7 @@ class Html5QrcodeScanner implements QRScanner {
           disableFlip: true,
           defaultZoomValueIfSupported: 1,
           rememberLastUsedCamera: false,
+          supportedScanTypes: [0], // QR Code and Data Matrix
           // Force back camera and hide camera selection on mobile
           showCameraPermissionsDialog: false,
           showFileScanInputButton: false,

@@ -111,7 +111,7 @@ class Html5QrcodeScanner implements QRScanner {
 
   private async loadScanner() {
     try {
-      if (!window.Html5Qrcode) {
+      if (!window.Html5QrcodeScanner) {
         const script = document.createElement("script")
         script.src = "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
         document.head.appendChild(script)
@@ -124,7 +124,7 @@ class Html5QrcodeScanner implements QRScanner {
 
   async render(successCallback: (data: string) => void, errorCallback: (error: string) => void) {
     try {
-      if (window.Html5Qrcode) {
+      if (window.Html5QrcodeScanner) {
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
           navigator.userAgent
         )
@@ -140,10 +140,10 @@ class Html5QrcodeScanner implements QRScanner {
           ...this.config,
         }
 
-        this.scanner = new window.Html5Qrcode(this.elementId)
+        this.scanner = new window.Html5QrcodeScanner(this.elementId)
 
         // Get all cameras
-        this.cameras = await window.Html5Qrcode.getCameras()
+        this.cameras = await window.Html5QrcodeScanner.getCameras()
         if (this.cameras.length === 0) {
           throw new Error("No cameras found")
         }

@@ -144,7 +144,7 @@ class Html5QrcodeScanner implements QRScanner {
           supportedScanTypes: [0], // QR Code and Data Matrix
           // Force back camera and hide camera selection on mobile
           showCameraPermissionsDialog: false,
-          showFileScanInputButton: false,
+          showFileScanInputButton: isMobile? false : true,
           videoConstraints: isMobile ? {
             facingMode: { exact: "environment" }
           } : undefined,

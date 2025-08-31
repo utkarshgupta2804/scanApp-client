@@ -129,14 +129,19 @@ class Html5QrcodeScanner implements QRScanner {
           navigator.userAgent
         )
 
-        const config: any = {
+        const config = {
           fps: 10,
           qrbox: isMobile ? { width: 200, height: 200 } : { width: 250, height: 250 },
           aspectRatio: 1.0,
           showTorchButtonIfSupported: false,
           showZoomSliderIfSupported: false,
+          defaultZoomValueIfSupported: 1,
           rememberLastUsedCamera: true,
-          showFileScanInputButton: false, // ✅ only live scan
+          disableFlipCamera: false,
+          supportedScanTypes: [0,1], // QR Code and Data Matrix
+          // Force back camera and hide camera selection on mobile
+          showCameraPermissionsDialog: false,
+          showFileScanInputButton: false,
           ...this.config,
         }
 
@@ -200,8 +205,6 @@ class Html5QrcodeScanner implements QRScanner {
     }
   }
 }
-
-
 
 // Declare global Html5QrcodeScanner
 declare global {

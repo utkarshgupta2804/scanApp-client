@@ -149,6 +149,7 @@ class Html5QrcodeScanner implements QRScanner {
           // Force back camera and hide camera selection on mobile
           showCameraPermissionsDialog: false,
           showFileScanInputButton: false,
+          showCameraSelectButton: false,
           ...this.config,
         }
 

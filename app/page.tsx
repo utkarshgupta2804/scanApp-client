@@ -109,7 +109,7 @@ class Html5QrcodeScanner implements QRScanner {
 
   private async loadScanner() {
     try {
-      if (!window.Html5Qrcode) {
+      if (!window.Html5QrcodeScanner) {
         const script = document.createElement("script")
         script.src =
           "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
@@ -131,12 +131,12 @@ class Html5QrcodeScanner implements QRScanner {
     try {
       await this.loadScanner()
 
-      if (window.Html5Qrcode) {
+      if (window.Html5QrcodeScanner) {
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
           navigator.userAgent
         )
 
-        this.scanner = new window.Html5Qrcode(this.elementId)
+        this.scanner = new window.Html5QrcodeScanner(this.elementId)
 
         const config = {
           fps: 10,

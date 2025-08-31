@@ -100,14 +100,15 @@ class Html5QrcodeScanner implements QRScanner {
   private elementId: string
   private config: any
   private scanner: any = null
-  
+
   constructor(elementId: string, config: any, verbose = false) {
     this.elementId = elementId
     this.config = config
+
     // Dynamically import html5-qrcode
     this.loadScanner()
   }
-  
+
   private async loadScanner() {
     try {
       // Load html5-qrcode from CDN
@@ -115,6 +116,7 @@ class Html5QrcodeScanner implements QRScanner {
         const script = document.createElement("script")
         script.src = "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
         document.head.appendChild(script)
+
         // Wait for script to load
         await new Promise((resolve) => {
           script.onload = resolve
@@ -124,50 +126,41 @@ class Html5QrcodeScanner implements QRScanner {
       console.error("Failed to load html5-qrcode:", error)
     }
   }
-  
+
   render(successCallback: (data: string) => void, errorCallback: (error: string) => void) {
     try {
       if (window.Html5QrcodeScanner) {
         // Mobile-optimized configuration
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-        
+
         const config = {
           fps: 10,
           qrbox: isMobile ? { width: 200, height: 200 } : { width: 250, height: 250 },
           aspectRatio: 1.0,
           showTorchButtonIfSupported: false,
           showZoomSliderIfSupported: false,
-          showSelectCamera: false, // Hide camera selection
           defaultZoomValueIfSupported: 1,
-          rememberLastUsedCamera: false, // Don't remember camera to avoid conflicts
+          rememberLastUsedCamera: true,
           supportedScanTypes: [0], // QR Code and Data Matrix
+          // Force back camera and hide camera selection on mobile
           showCameraPermissionsDialog: false,
           showFileScanInputButton: false,
-          // Additional options to hide camera selection
           videoConstraints: isMobile ? {
             facingMode: { exact: "environment" }
           } : undefined,
           ...this.config,
         }
-        
-        // Force back camera on mobile devices with more explicit constraints
+
+        // Force back camera on mobile devices
         if (isMobile) {
           config.cameraIdOrConfig = { 
-            facingMode: { exact: "environment" }
+            facingMode: { exact: "environment" } // Use exact to force back camera
           }
-          // Also try to hide any camera switching UI elements
-          config.showSelectCamera = false
-          config.showCameraListWhenNoCameraAccess = false
         }
-        
+
         this.scanner = new window.Html5QrcodeScanner(this.elementId, config, false)
+
         this.scanner.render(successCallback, errorCallback)
-        
-        // Additional step: Hide camera select elements via CSS after render
-        setTimeout(() => {
-          this.hideCameraSelectElements()
-        }, 500)
-        
       } else {
         // Fallback if library not loaded
         setTimeout(() => this.render(successCallback, errorCallback), 1000)
@@ -177,29 +170,7 @@ class Html5QrcodeScanner implements QRScanner {
       errorCallback("Failed to initialize camera scanner")
     }
   }
-  
-  private hideCameraSelectElements() {
-    try {
-      // Force hide camera selection elements via CSS
-      const cameraSelectElements = document.querySelectorAll(
-        `#${this.elementId} select[id*="camera"], #${this.elementId} .camera-selection, #${this.elementId} [id*="qr-select-camera"]`
-      )
-      cameraSelectElements.forEach(element => {
-        (element as HTMLElement).style.display = 'none'
-      })
-      
-      // Also hide any camera permission request UI if present
-      const cameraPermissionElements = document.querySelectorAll(
-        `#${this.elementId} [id*="camera-permission"]`
-      )
-      cameraPermissionElements.forEach(element => {
-        (element as HTMLElement).style.display = 'none'
-      })
-    } catch (error) {
-      console.log("Note: Could not hide camera select elements via CSS")
-    }
-  }
-  
+
   async clear() {
     try {
       if (this.scanner) {

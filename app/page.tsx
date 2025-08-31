@@ -130,10 +130,11 @@ class Html5QrcodeScanner implements QRScanner {
   render(successCallback: (data: string) => void, errorCallback: (error: string) => void) {
     try {
       if (window.Html5QrcodeScanner) {
-        // Mobile-optimized configuration
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-
-        const config = {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        )
+  
+        const config: any = {
           fps: 10,
           qrbox: isMobile ? { width: 200, height: 200 } : { width: 250, height: 250 },
           aspectRatio: 1.0,
@@ -141,28 +142,20 @@ class Html5QrcodeScanner implements QRScanner {
           showZoomSliderIfSupported: false,
           defaultZoomValueIfSupported: 1,
           rememberLastUsedCamera: true,
-          supportedScanTypes: [0], // QR Code and Data Matrix
-          // Force back camera and hide camera selection on mobile
+          supportedScanTypes: [0], // QR only
           showCameraPermissionsDialog: false,
-          showFileScanInputButton: isMobile? false : true,
-          videoConstraints: isMobile ? {
-            facingMode: { exact: "environment" }
-          } : undefined,
+          showFileScanInputButton: isMobile ? false : true, // ✅ Scan file button only on desktop
           ...this.config,
         }
-
-        // Force back camera on mobile devices
+  
+        // Force back camera on mobile only
         if (isMobile) {
-          config.cameraIdOrConfig = { 
-            facingMode: { exact: "environment" } // Use exact to force back camera
-          }
+          config.cameraIdOrConfig = { facingMode: { exact: "environment" } }
         }
-
+  
         this.scanner = new window.Html5QrcodeScanner(this.elementId, config, false)
-
         this.scanner.render(successCallback, errorCallback)
       } else {
-        // Fallback if library not loaded
         setTimeout(() => this.render(successCallback, errorCallback), 1000)
       }
     } catch (error) {
@@ -170,6 +163,7 @@ class Html5QrcodeScanner implements QRScanner {
       errorCallback("Failed to initialize camera scanner")
     }
   }
+  
 
   async clear() {
     try {

@@ -104,17 +104,20 @@ class Html5QrcodeScanner implements QRScanner {
   constructor(elementId: string, config: any, verbose = false) {
     this.elementId = elementId
     this.config = config
+
+    // Dynamically import html5-qrcode
     this.loadScanner()
   }
 
   private async loadScanner() {
     try {
+      // Load html5-qrcode from CDN
       if (!window.Html5QrcodeScanner) {
         const script = document.createElement("script")
-        script.src =
-          "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
         document.head.appendChild(script)
 
+        // Wait for script to load
         await new Promise((resolve) => {
           script.onload = resolve
         })
@@ -124,44 +127,44 @@ class Html5QrcodeScanner implements QRScanner {
     }
   }
 
-  async render(
-    successCallback: (data: string) => void,
-    errorCallback: (error: string) => void
-  ) {
+  render(successCallback: (data: string) => void, errorCallback: (error: string) => void) {
     try {
-      await this.loadScanner()
-
       if (window.Html5QrcodeScanner) {
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-          navigator.userAgent
-        )
-
-        this.scanner = new window.Html5QrcodeScanner(this.elementId)
+        // Mobile-optimized configuration
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
         const config = {
           fps: 10,
           qrbox: isMobile ? { width: 200, height: 200 } : { width: 250, height: 250 },
           aspectRatio: 1.0,
+          showTorchButtonIfSupported: false,
+          showZoomSliderIfSupported: false,
+          showSelectCamera: false,
+          showStartButton: false,
+          showStopButton: false,
+          disableFlip: true,
+          defaultZoomValueIfSupported: 1,
+          rememberLastUsedCamera: true,
+          supportedScanTypes: [0], // QR Code and Data Matrix
+          // Force back camera and hide camera selection on mobile
+          showCameraPermissionsDialog: false,
+          showFileScanInputButton: false,
           ...this.config,
         }
 
-        // Always pick back camera on mobile, default on desktop
-        const cameraConfig = isMobile
-          ? { facingMode: { exact: "environment" } }
-          : { facingMode: "user" }
-
-        await this.scanner.start(
-          cameraConfig,
-          config,
-          (decodedText: string) => successCallback(decodedText),
-          (errorMsg: string) => {
-            if (!/NotFoundException/i.test(errorMsg)) {
-              errorCallback(errorMsg)
-            }
+        // Force back camera on mobile devices
+        if (isMobile) {
+          config.cameraIdOrConfig = { 
+            facingMode: { exact: "environment" } // Use exact to force back camera
           }
-        )
+        }
+
+        this.scanner = new window.Html5QrcodeScanner(this.elementId, config, false)
+
+        this.scanner.render(successCallback, errorCallback)
       } else {
-        setTimeout(() => this.render(successCallback, errorCallback), 500)
+        // Fallback if library not loaded
+        setTimeout(() => this.render(successCallback, errorCallback), 1000)
       }
     } catch (error) {
       console.error("QR Scanner render error:", error)
@@ -172,7 +175,6 @@ class Html5QrcodeScanner implements QRScanner {
   async clear() {
     try {
       if (this.scanner) {
-        await this.scanner.stop()
         await this.scanner.clear()
         this.scanner = null
       }

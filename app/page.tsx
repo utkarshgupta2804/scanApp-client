@@ -1,7 +1,5 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
-import type React from "react"
-
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -24,238 +22,6 @@ import {
   Mail,
   ArrowLeft,
 } from "lucide-react"
-
-import jsQR from "jsQR"
-
-type QrReaderProps = {
-  onResult: (result: string) => void
-  onError: (error: string) => void
-  constraints?: MediaTrackConstraints
-}
-
-const QrReader: React.FC<QrReaderProps> = ({ onResult, onError, constraints }) => {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [isScanning, setIsScanning] = useState(false)
-  const [stream, setStream] = useState<MediaStream | null>(null)
-  const [cameraError, setCameraError] = useState<string>("")
-  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Initialize QR code scanner
-  useEffect(() => {
-    let isMounted = true
-
-    const initializeScanner = async () => {
-      try {
-        setCameraError("")
-
-        // Check if getUserMedia is supported
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error("Camera not supported in this browser")
-        }
-
-        // Request camera permission
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: constraints?.facingMode || { ideal: "environment" },
-            width: { ideal: 640, min: 320 },
-            height: { ideal: 480, min: 240 },
-            ...constraints,
-          },
-        })
-
-        if (!isMounted) {
-          mediaStream.getTracks().forEach((track) => track.stop())
-          return
-        }
-
-        setStream(mediaStream)
-
-        if (videoRef.current) {
-          const v = videoRef.current
-          // Make sure iOS Safari doesn't force fullscreen and allows autoplay
-          v.setAttribute("playsinline", "true")
-          ;(v as any).playsInline = true
-          v.muted = true
-          v.autoplay = true
-
-          v.srcObject = mediaStream
-
-          v.onloadedmetadata = () => {
-            v.play().catch(() => {
-              // ignore play() rejection on some browsers until user gesture
-            })
-            setIsScanning(true)
-            startQRCodeDetection()
-          }
-        }
-      } catch (error: any) {
-        console.error("Camera initialization failed:", error)
-        let errorMessage = "Camera access failed"
-
-        if (error.name === "NotAllowedError") {
-          errorMessage = "Camera permission denied. Please allow camera access and try again."
-        } else if (error.name === "NotFoundError") {
-          errorMessage = "No camera found on this device."
-        } else if (error.name === "NotReadableError") {
-          errorMessage = "Camera is being used by another application."
-        }
-
-        if (isMounted) {
-          setCameraError(errorMessage)
-          onError(errorMessage)
-        }
-      }
-    }
-
-    initializeScanner()
-
-    return () => {
-      isMounted = false
-      cleanup()
-    }
-  }, [constraints, onError])
-
-  const startQRCodeDetection = () => {
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current)
-    }
-
-    scanIntervalRef.current = setInterval(() => {
-      if (videoRef.current && canvasRef.current && isScanning) {
-        detectQRCode()
-      }
-    }, 500) // Scan every 500ms
-  }
-
-  const detectQRCode = async () => {
-    const video = videoRef.current
-    const canvas = canvasRef.current
-
-    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA || !isScanning) {
-      return
-    }
-
-    const context = canvas.getContext("2d")
-    if (!context) return
-
-    // Match canvas size to the current video frame
-    canvas.width = video.videoWidth || 640
-    canvas.height = video.videoHeight || 480
-
-    // Draw the current frame to the canvas
-    context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-    try {
-      // Prefer native detector when supported
-      if ("BarcodeDetector" in window) {
-        // @ts-ignore - BarcodeDetector may not be in TS lib
-        const barcodeDetector = new (window as any).BarcodeDetector({ formats: ["qr_code"] })
-        const barcodes = await barcodeDetector.detect(canvas)
-
-        if (barcodes.length > 0) {
-          const value = barcodes[0].rawValue || ""
-          if (value) {
-            // Stop scanning to prevent duplicate submissions
-            setIsScanning(false)
-            onResult(value)
-            cleanup()
-            return
-          }
-        }
-      }
-
-      // Fallback to jsQR for browsers without BarcodeDetector (e.g., iOS Safari)
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
-      const code = jsQR(imageData.data, imageData.width, imageData.height)
-      if (code && code.data) {
-        setIsScanning(false)
-        onResult(code.data)
-        cleanup()
-        return
-      }
-    } catch (err: any) {
-      const msg = err?.message || String(err)
-      if (!msg.includes("No QR code")) {
-        console.error("[QR detection error]", err)
-        onError?.("QR detection error")
-      }
-    }
-  }
-
-  const cleanup = () => {
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current)
-      scanIntervalRef.current = null
-    }
-
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop())
-      setStream(null)
-    }
-
-    setIsScanning(false)
-  }
-
-  const retryCamera = () => {
-    setCameraError("")
-    cleanup()
-    // Re-trigger the effect by updating a key or state
-    window.location.reload()
-  }
-
-  if (cameraError) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 bg-gray-900 rounded-lg p-4">
-        <XCircle className="w-12 h-12 text-red-400 mb-4" />
-        <p className="text-white text-center mb-4">{cameraError}</p>
-        <Button onClick={retryCamera} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded">
-          Try Again
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="relative w-full h-full bg-black rounded-lg overflow-hidden min-h-[250px]">
-      {/* Video element for camera feed */}
-      <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
-
-      {/* Hidden canvas for QR code detection */}
-      <canvas ref={canvasRef} className="hidden" />
-
-      {/* Scanning overlay */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="w-48 h-48 border-2 border-white rounded-lg opacity-70">
-          <div className="w-full h-full relative">
-            {/* Corner markers */}
-            <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-white"></div>
-            <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-white"></div>
-            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-white"></div>
-            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-white"></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Status indicator */}
-      {isScanning && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white px-3 py-1 rounded-full text-sm">
-          Scanning for QR codes...
-        </div>
-      )}
-
-      {/* Loading indicator */}
-      {!isScanning && !cameraError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-white mx-auto mb-2" />
-            <p className="text-white text-sm">Initializing camera...</p>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 // Types
 interface User {
@@ -322,6 +88,98 @@ interface ScanResult {
       username: string
       points: number
     }
+  }
+}
+
+// Real QR Scanner using html5-qrcode
+interface QRScanner {
+  render: (successCallback: (data: string) => void, errorCallback: (error: string) => void) => void
+  clear: () => Promise<void>
+}
+
+class Html5QrcodeScanner implements QRScanner {
+  private elementId: string
+  private config: any
+  private scanner: any = null
+
+  constructor(elementId: string, config: any, verbose = false) {
+    this.elementId = elementId
+    this.config = config
+
+    // Dynamically import html5-qrcode
+    this.loadScanner()
+  }
+
+  private async loadScanner() {
+    try {
+      // Load html5-qrcode from CDN
+      if (!window.Html5QrcodeScanner) {
+        const script = document.createElement("script")
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
+        document.head.appendChild(script)
+
+        // Wait for script to load
+        await new Promise((resolve) => {
+          script.onload = resolve
+        })
+      }
+    } catch (error) {
+      console.error("Failed to load html5-qrcode:", error)
+    }
+  }
+
+  render(successCallback: (data: string) => void, errorCallback: (error: string) => void) {
+    try {
+      if (window.Html5QrcodeScanner) {
+        // Mobile-optimized configuration
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+
+        const config = {
+          fps: 10,
+          qrbox: isMobile ? { width: 200, height: 200 } : { width: 250, height: 250 },
+          aspectRatio: 1.0,
+          showTorchButtonIfSupported: true,
+          showZoomSliderIfSupported: true,
+          defaultZoomValueIfSupported: 2,
+          rememberLastUsedCamera: false, // Changed to false to force back camera
+          supportedScanTypes: [0, 1], // QR Code and Data Matrix
+          ...this.config,
+        }
+
+        // Add camera constraints specifically for mobile
+        if (isMobile) {
+          config.cameraIdOrConfig = { facingMode: "environment" }
+        }
+
+        this.scanner = new window.Html5QrcodeScanner(this.elementId, config, false)
+
+        this.scanner.render(successCallback, errorCallback)
+      } else {
+        // Fallback if library not loaded
+        setTimeout(() => this.render(successCallback, errorCallback), 1000)
+      }
+    } catch (error) {
+      console.error("QR Scanner render error:", error)
+      errorCallback("Failed to initialize camera scanner")
+    }
+  }
+
+  async clear() {
+    try {
+      if (this.scanner) {
+        await this.scanner.clear()
+        this.scanner = null
+      }
+    } catch (error) {
+      console.error("QR Scanner clear error:", error)
+    }
+  }
+}
+
+// Declare global Html5QrcodeScanner
+declare global {
+  interface Window {
+    Html5QrcodeScanner: any
   }
 }
 
@@ -567,10 +425,9 @@ export default function OilProClient() {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [scannedData, setScannedData] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const scannerRef = useRef<QRScanner | null>(null)
   const [forgotPasswordDialog, setForgotPasswordDialog] = useState(false)
   const [forgotPasswordForm, setForgotPasswordForm] = useState<ForgotPasswordForm>({ email: "" })
-  const [scannerActive, setScannerActive] = useState(true)
-  const [scannerKey, setScannerKey] = useState(0)
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
   const [forgotPasswordError, setForgotPasswordError] = useState("")
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState("")
@@ -760,29 +617,87 @@ export default function OilProClient() {
     }
     setScannerDialog(true)
     setScanResult(null)
+  }
+
+  const reinitializeScanner = () => {
+    setScanResult(null)
     setScannedData(null)
-    setScannerActive(true)
-    setScannerKey((prev) => prev + 1) // Force re-render of scanner
+
+    setTimeout(() => {
+      const qrReaderElement = document.getElementById("qr-reader")
+      if (!qrReaderElement) return
+
+      try {
+        if (scannerRef.current) {
+          scannerRef.current.clear().catch(() => { })
+        }
+
+        scannerRef.current = new Html5QrcodeScanner(
+          "qr-reader",
+          {
+            fps: 10,
+            qrbox: { width: 200, height: 200 },
+            aspectRatio: 1.0,
+          },
+          false,
+        )
+
+        scannerRef.current.render(
+          (decodedText) => {
+            handleQRScan(decodedText)
+          },
+          (error) => {
+            if (!error.includes("NotFoundException")) {
+              console.log("QR scan error:", error)
+            }
+          },
+        )
+      } catch (error) {
+        console.error("Failed to reinitialize scanner:", error)
+      }
+    }, 100)
   }
 
   const handleQRScan = async (qrData: string) => {
-    console.log("[QR Scanner] Raw QR data received:", qrData)
+    const scanMetadata = {
+      rawData: qrData,
+      timestamp: new Date().toISOString(),
+      dataLength: qrData.length,
+      dataType: detectDataType(qrData),
+      parsedData: parseQRData(qrData),
+    }
 
-    setScannedData(qrData)
-    // Stop the scanner immediately after successful scan
-    setScannerActive(false)
+    console.log("[v0] QR scan complete:", scanMetadata)
+    setScannedData(JSON.stringify(scanMetadata, null, 2))
 
-    // Process the QR code immediately
+    if (scannerRef.current) {
+      scannerRef.current.clear().catch(() => { })
+      scannerRef.current = null
+    }
+  }
+
+  const handleSubmitScannedData = async () => {
+    if (!scannedData) return
+
     setIsSubmitting(true)
     try {
-      const result = await ApiService.scanQR(qrData)
+      const parsedScannedData = JSON.parse(scannedData)
+      const rawQRData = parsedScannedData.rawData
+
+      console.log("[v0] Submitting raw QR data:", rawQRData)
+
+      const result = await ApiService.scanQR(rawQRData)
       setScanResult(result)
 
       if (result.success && result.data) {
         setUser((prev) => (prev ? { ...prev, points: result.data!.totalPoints } : null))
       }
+
+      if (result.success) {
+        setScannedData(null)
+      }
     } catch (error: any) {
-      console.error("Error processing QR code:", error)
+      console.error("Error submitting QR data:", error)
 
       let errorMessage = "Failed to process QR code"
       let errorType = "general"
@@ -811,18 +726,55 @@ export default function OilProClient() {
     }
   }
 
-  const handleQRError = (error: string) => {
-    if (!error.includes("NotFoundException") && !error.includes("Camera")) {
-      console.log("QR scan error:", error)
-    }
-  }
+  useEffect(() => {
+    if (scannerDialog) {
+      const initializeScanner = () => {
+        const qrReaderElement = document.getElementById("qr-reader")
+        if (!qrReaderElement) {
+          setTimeout(initializeScanner, 100)
+          return
+        }
 
-  const reinitializeScanner = () => {
-    setScanResult(null)
-    setScannedData(null)
-    setScannerActive(true)
-    setScannerKey((prev) => prev + 1) // Force re-render
-  }
+        try {
+          if (scannerRef.current) {
+            scannerRef.current.clear().catch(() => { })
+          }
+
+          scannerRef.current = new Html5QrcodeScanner(
+            "qr-reader",
+            {
+              fps: 10,
+              qrbox: { width: 200, height: 200 },
+              aspectRatio: 1.0,
+            },
+            false,
+          )
+
+          scannerRef.current.render(
+            (decodedText) => {
+              handleQRScan(decodedText)
+            },
+            (error) => {
+              if (!error.includes("NotFoundException")) {
+                console.log("QR scan error:", error)
+              }
+            },
+          )
+        } catch (error) {
+          console.error("Failed to initialize scanner:", error)
+        }
+      }
+
+      setTimeout(initializeScanner, 100)
+    }
+
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(() => { })
+        scannerRef.current = null
+      }
+    }
+  }, [scannerDialog])
 
   const handleRedeem = (scheme: Scheme) => {
     if (user && user.points >= scheme.pointsRequired) {
@@ -848,7 +800,10 @@ export default function OilProClient() {
     if (!open) {
       setScanResult(null)
       setScannedData(null)
-      setScannerActive(false)
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(() => { })
+        scannerRef.current = null
+      }
     }
   }
 
@@ -856,7 +811,85 @@ export default function OilProClient() {
     setScanResult(null)
     setScannedData(null)
     setScannerDialog(false)
-    setScannerActive(false)
+  }
+
+  const detectDataType = (data: string): string => {
+    if (data.startsWith("http://") || data.startsWith("https://")) return "URL"
+    if (data.startsWith("mailto:")) return "Email"
+    if (data.startsWith("tel:")) return "Phone"
+    if (data.startsWith("wifi:")) return "WiFi"
+    if (data.startsWith("geo:")) return "Location"
+    if (data.startsWith("BEGIN:VCARD")) return "vCard"
+    if (data.startsWith("BEGIN:VEVENT")) return "Calendar Event"
+
+    try {
+      JSON.parse(data)
+      return "JSON"
+    } catch {
+      // Not JSON
+    }
+
+    if (/^\d+$/.test(data)) return "Numeric"
+    if (data.includes("\n") || data.length > 100) return "Text (Multi-line)"
+
+    return "Text"
+  }
+
+  const parseQRData = (data: string): any => {
+    const type = detectDataType(data)
+
+    switch (type) {
+      case "JSON":
+        try {
+          return JSON.parse(data)
+        } catch {
+          return { error: "Invalid JSON format" }
+        }
+
+      case "URL":
+        try {
+          const url = new URL(data)
+          return {
+            protocol: url.protocol,
+            hostname: url.hostname,
+            pathname: url.pathname,
+            search: url.search,
+            hash: url.hash,
+          }
+        } catch {
+          return { error: "Invalid URL format" }
+        }
+
+      case "WiFi":
+        const wifiMatch = data.match(/WIFI:T:([^;]*);S:([^;]*);P:([^;]*);H:([^;]*);?/)
+        if (wifiMatch) {
+          return {
+            type: wifiMatch[1],
+            security: wifiMatch[2],
+            password: wifiMatch[3],
+            hidden: wifiMatch[4] === "true",
+          }
+        }
+        return { error: "Invalid WiFi format" }
+
+      case "Location":
+        const geoMatch = data.match(/geo:([^,]+),([^,?]+)/)
+        if (geoMatch) {
+          return {
+            latitude: Number.parseFloat(geoMatch[1]),
+            longitude: Number.parseFloat(geoMatch[2]),
+          }
+        }
+        return { error: "Invalid location format" }
+
+      default:
+        return {
+          length: data.length,
+          wordCount: data.split(/\s+/).length,
+          hasSpecialChars: /[^a-zA-Z0-9\s]/.test(data),
+          preview: data.length > 50 ? data.substring(0, 50) + "..." : data,
+        }
+    }
   }
 
   return (
@@ -1002,11 +1035,10 @@ export default function OilProClient() {
                           <Button
                             onClick={() => handleRedeem(scheme)}
                             disabled={!isSignedIn || !canRedeem}
-                            className={`w-full rounded-lg font-bold py-2 sm:py-3 text-xs sm:text-sm transition-colors duration-200 ${
-                              canRedeem
-                                ? "bg-[#FF6F00] text-white hover:bg-[#00B4D8]"
-                                : "bg-[#B0B0B0] text-white cursor-not-allowed"
-                            }`}
+                            className={`w-full rounded-lg font-bold py-2 sm:py-3 text-xs sm:text-sm transition-colors duration-200 ${canRedeem
+                              ? "bg-[#FF6F00] text-white hover:bg-[#00B4D8]"
+                              : "bg-[#B0B0B0] text-white cursor-not-allowed"
+                              }`}
                           >
                             {!isSignedIn ? (
                               <div className="flex items-center justify-center space-x-1 sm:space-x-2">
@@ -1075,12 +1107,20 @@ export default function OilProClient() {
 
           <div className="flex flex-col gap-2">
             <h4 className="text-[#FFFFFF] font-semibold text-base sm:text-lg">Contact</h4>
-            <a href="tel:+919896089897" className="text-blue-500 text-sm hover:text-white font-bold underline">
+            <a
+              href="tel:+919896089897"
+              className="text-blue-500 text-sm hover:text-white font-bold underline"
+            >
               +91 98960 89897
             </a>
-            <a href="tel:+917015938614" className="text-blue-500 text-sm hover:text-white font-bold underline">
+            <a
+              href="tel:+917015938614"
+              className="text-blue-500 text-sm hover:text-white font-bold underline"
+            >
               +91 70159 38614
             </a>
+
+
           </div>
 
           <div className="flex items-start sm:items-center sm:justify-end">
@@ -1093,7 +1133,7 @@ export default function OilProClient() {
         </div>
       </footer>
 
-      {/* Enhanced QR Scanner Dialog - Mobile Optimized with Native Web APIs */}
+      {/* Enhanced QR Scanner Dialog - Mobile Optimized */}
       <Dialog open={scannerDialog} onOpenChange={handleScannerDialogChange}>
         <DialogContent className="sm:max-w-md w-[95vw] max-w-[400px] bg-[#1A1A2E]/95 backdrop-blur-sm border border-[#FF6F00]/20 rounded-2xl sm:rounded-3xl shadow-2xl mx-auto">
           <DialogHeader>
@@ -1145,9 +1185,8 @@ export default function OilProClient() {
                     )}
                     <div>
                       <h3
-                        className={`text-lg sm:text-xl font-bold mb-2 sm:mb-3 ${
-                          scanResult.errorType === "already_scanned" ? "text-yellow-400" : "text-[#D32F2F]"
-                        }`}
+                        className={`text-lg sm:text-xl font-bold mb-2 sm:mb-3 ${scanResult.errorType === "already_scanned" ? "text-yellow-400" : "text-[#D32F2F]"
+                          }`}
                       >
                         {scanResult.errorType === "already_scanned" ? "Already Redeemed" : "Error"}
                       </h3>
@@ -1165,42 +1204,55 @@ export default function OilProClient() {
                   Close
                 </Button>
 
-                {!scanResult.success && (
-                  <Button
-                    onClick={reinitializeScanner}
-                    className="flex-1 bg-[#FF6F00] text-[#1A1A2E] hover:bg-[#D45D00] border-0 rounded-lg font-bold py-2 sm:py-3 text-sm sm:text-base"
-                  >
-                    Scan Another
-                  </Button>
-                )}
+                {!scanResult.success &&
+                  (scanResult.errorType === "already_scanned" || scanResult.errorType === "not_found") && (
+                    <Button
+                      onClick={reinitializeScanner}
+                      className="flex-1 bg-[#FF6F00] text-[#1A1A2E] hover:bg-[#D45D00] border-0 rounded-lg font-bold py-2 sm:py-3 text-sm sm:text-base"
+                    >
+                      Scan Another
+                    </Button>
+                  )}
               </div>
             </div>
-          ) : isSubmitting ? (
+          ) : scannedData ? (
             <div className="space-y-4 sm:space-y-6">
               <div className="text-center">
-                <Loader2 className="w-16 h-16 sm:w-20 sm:h-20 animate-spin text-blue-400 mx-auto mb-4" />
-                <h3 className="text-lg sm:text-xl font-bold text-[#FFFFFF] mb-2 sm:mb-3">Processing QR Code...</h3>
-                <p className="text-[#B0B0B0] font-medium text-sm sm:text-base">
-                  Please wait while we validate your QR code
-                </p>
+                <CheckCircle className="w-12 h-12 sm:w-16 sm:h-16 text-blue-400 mx-auto mb-3 sm:mb-4" />
+                <h3 className="text-lg sm:text-xl font-bold text-[#FFFFFF] mb-2 sm:mb-3">
+                  QR Code Scanned Successfully!
+                </h3>
+              </div>
+              <div className="flex space-x-2 sm:space-x-3">
+                <Button
+                  onClick={handleSubmitScannedData}
+                  disabled={isSubmitting}
+                  className="flex-1 bg-[#FF6F00] text-[#1A1A2E] hover:bg-[#D45D00] border-0 rounded-lg font-bold py-2 sm:py-3 text-sm sm:text-base"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Get Points"
+                  )}
+                </Button>
+                <Button
+                  onClick={reinitializeScanner}
+                  disabled={isSubmitting}
+                  className="flex-1 bg-[#B0B0B0] text-[#FFFFFF] hover:bg-[#737373] border-0 rounded-lg font-bold py-2 sm:py-3 text-sm sm:text-base"
+                >
+                  Scan Again
+                </Button>
               </div>
             </div>
           ) : (
             <div className="space-y-4 sm:space-y-6">
-              <div className="w-full min-h-[250px] sm:min-h-[300px] rounded-xl sm:rounded-2xl overflow-hidden bg-black relative">
-                {scannerActive && (
-                  <QrReader
-                    key={scannerKey}
-                    onResult={handleQRScan}
-                    onError={handleQRError}
-                    constraints={{
-                      facingMode: "environment", // back camera on mobile
-                      width: { ideal: 400 },
-                      height: { ideal: 300 },
-                    }}
-                  />
-                )}
-              </div>
+              <div
+                id="qr-reader"
+                className="w-full min-h-[250px] sm:min-h-[300px] rounded-xl sm:rounded-2xl overflow-hidden bg-white qr-scanner-container"
+              ></div>
 
               <div className="text-center">
                 <div className="flex items-center justify-center space-x-1 sm:space-x-2 text-xs sm:text-sm text-[#FFFFFF] mb-3 sm:mb-4 font-medium">

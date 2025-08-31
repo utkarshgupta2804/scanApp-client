@@ -144,7 +144,7 @@ class Html5QrcodeScanner implements QRScanner {
           rememberLastUsedCamera: true,
           supportedScanTypes: [0], // QR only
           showCameraPermissionsDialog: false,
-          showFileScanInputButton: isMobile ? false : true, // ✅ Scan file button only on desktop
+          showFileScanInputButton:  true, // ✅ Scan file button only on desktop
           ...this.config,
         }
   

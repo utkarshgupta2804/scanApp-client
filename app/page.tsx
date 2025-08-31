@@ -100,67 +100,86 @@ class Html5QrcodeScanner implements QRScanner {
   private elementId: string
   private config: any
   private scanner: any = null
+  private currentCameraIndex: number = 0
+  private cameras: { id: string; label: string }[] = []
 
   constructor(elementId: string, config: any, verbose = false) {
     this.elementId = elementId
     this.config = config
-
-    // Dynamically import html5-qrcode
     this.loadScanner()
   }
 
   private async loadScanner() {
     try {
-      // Load html5-qrcode from CDN
-      if (!window.Html5QrcodeScanner) {
+      if (!window.Html5Qrcode) {
         const script = document.createElement("script")
         script.src = "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
         document.head.appendChild(script)
-
-        // Wait for script to load
-        await new Promise((resolve) => {
-          script.onload = resolve
-        })
+        await new Promise((resolve) => (script.onload = resolve))
       }
     } catch (error) {
       console.error("Failed to load html5-qrcode:", error)
     }
   }
 
-  render(successCallback: (data: string) => void, errorCallback: (error: string) => void) {
+  async render(successCallback: (data: string) => void, errorCallback: (error: string) => void) {
     try {
-      if (window.Html5QrcodeScanner) {
-        // Mobile-optimized configuration
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      if (window.Html5Qrcode) {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        )
 
-        const config = {
+        const config: any = {
           fps: 10,
           qrbox: isMobile ? { width: 200, height: 200 } : { width: 250, height: 250 },
           aspectRatio: 1.0,
           showTorchButtonIfSupported: false,
           showZoomSliderIfSupported: false,
-          defaultZoomValueIfSupported: 1,
           rememberLastUsedCamera: true,
-          disableFlipCamera: false,
-          supportedScanTypes: [0,1], // QR Code and Data Matrix
-          // Force back camera and hide camera selection on mobile
-          showCameraPermissionsDialog: false,
-          showFileScanInputButton: false,
+          showFileScanInputButton: false, // ✅ only live scan
           ...this.config,
         }
 
-        // Force back camera on mobile devices
-        if (isMobile) {
-          config.cameraIdOrConfig = { 
-            facingMode: { exact: "environment" } // Use exact to force back camera
-          }
+        this.scanner = new window.Html5Qrcode(this.elementId)
+
+        // Get all cameras
+        this.cameras = await window.Html5Qrcode.getCameras()
+        if (this.cameras.length === 0) {
+          throw new Error("No cameras found")
         }
 
-        this.scanner = new window.Html5QrcodeScanner(this.elementId, config, false)
+        // Start with first camera
+        await this.scanner.start(
+          { deviceId: { exact: this.cameras[this.currentCameraIndex].id } },
+          config,
+          successCallback,
+          (err: string) => {
+            if (!/NotFoundException/i.test(err)) errorCallback(err)
+          }
+        )
 
-        this.scanner.render(successCallback, errorCallback)
+        // ✅ Add a rotate button
+        const container = document.getElementById(this.elementId)
+        if (container && !document.getElementById(`${this.elementId}-rotate`)) {
+          const btn = document.createElement("button")
+          btn.id = `${this.elementId}-rotate`
+          btn.innerText = "🔄 Rotate Camera"
+          btn.style.marginTop = "10px"
+          btn.onclick = async () => {
+            this.currentCameraIndex = (this.currentCameraIndex + 1) % this.cameras.length
+            await this.scanner.stop()
+            await this.scanner.start(
+              { deviceId: { exact: this.cameras[this.currentCameraIndex].id } },
+              config,
+              successCallback,
+              (err: string) => {
+                if (!/NotFoundException/i.test(err)) errorCallback(err)
+              }
+            )
+          }
+          container.appendChild(btn)
+        }
       } else {
-        // Fallback if library not loaded
         setTimeout(() => this.render(successCallback, errorCallback), 1000)
       }
     } catch (error) {
@@ -172,6 +191,7 @@ class Html5QrcodeScanner implements QRScanner {
   async clear() {
     try {
       if (this.scanner) {
+        await this.scanner.stop()
         await this.scanner.clear()
         this.scanner = null
       }
@@ -180,6 +200,7 @@ class Html5QrcodeScanner implements QRScanner {
     }
   }
 }
+
 
 
 // Declare global Html5QrcodeScanner

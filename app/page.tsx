@@ -96,7 +96,6 @@ interface QRScanner {
   render: (successCallback: (data: string) => void, errorCallback: (error: string) => void) => void
   clear: () => Promise<void>
 }
-
 class Html5QrcodeScanner implements QRScanner {
   private elementId: string
   private config: any
@@ -141,14 +140,19 @@ class Html5QrcodeScanner implements QRScanner {
           showTorchButtonIfSupported: true,
           showZoomSliderIfSupported: true,
           defaultZoomValueIfSupported: 2,
-          rememberLastUsedCamera: false, // Changed to false to force back camera
+          rememberLastUsedCamera: false,
           supportedScanTypes: [0, 1], // QR Code and Data Matrix
+          // Force back camera and hide camera selection on mobile
+          showCameraPermissionsDialog: false,
+          showFileScanInputButton: false,
           ...this.config,
         }
 
-        // Add camera constraints specifically for mobile
+        // Force back camera on mobile devices
         if (isMobile) {
-          config.cameraIdOrConfig = { facingMode: "environment" }
+          config.cameraIdOrConfig = { 
+            facingMode: { exact: "environment" } // Use exact to force back camera
+          }
         }
 
         this.scanner = new window.Html5QrcodeScanner(this.elementId, config, false)
@@ -175,6 +179,7 @@ class Html5QrcodeScanner implements QRScanner {
     }
   }
 }
+
 
 // Declare global Html5QrcodeScanner
 declare global {

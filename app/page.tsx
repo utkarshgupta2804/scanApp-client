@@ -1,6 +1,7 @@
-
 "use client"
 import { useState, useEffect, useRef } from "react"
+import type React from "react"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -21,8 +22,10 @@ import {
   Gift,
   Users,
   Mail,
-  ArrowLeft
+  ArrowLeft,
 } from "lucide-react"
+
+import jsQR from "jsQR"
 
 type QrReaderProps = {
   onResult: (result: string) => void
@@ -45,7 +48,7 @@ const QrReader: React.FC<QrReaderProps> = ({ onResult, onError, constraints }) =
     const initializeScanner = async () => {
       try {
         setCameraError("")
-        
+
         // Check if getUserMedia is supported
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           throw new Error("Camera not supported in this browser")
@@ -57,42 +60,47 @@ const QrReader: React.FC<QrReaderProps> = ({ onResult, onError, constraints }) =
             facingMode: constraints?.facingMode || { ideal: "environment" },
             width: { ideal: 640, min: 320 },
             height: { ideal: 480, min: 240 },
-            ...constraints
-          }
+            ...constraints,
+          },
         })
 
         if (!isMounted) {
-          mediaStream.getTracks().forEach(track => track.stop())
+          mediaStream.getTracks().forEach((track) => track.stop())
           return
         }
 
         setStream(mediaStream)
 
         if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream
-          
-          // Wait for video to load
-          videoRef.current.onloadedmetadata = () => {
-            if (videoRef.current) {
-              videoRef.current.play()
-              setIsScanning(true)
-              startQRCodeDetection()
-            }
+          const v = videoRef.current
+          // Make sure iOS Safari doesn't force fullscreen and allows autoplay
+          v.setAttribute("playsinline", "true")
+          ;(v as any).playsInline = true
+          v.muted = true
+          v.autoplay = true
+
+          v.srcObject = mediaStream
+
+          v.onloadedmetadata = () => {
+            v.play().catch(() => {
+              // ignore play() rejection on some browsers until user gesture
+            })
+            setIsScanning(true)
+            startQRCodeDetection()
           }
         }
-
       } catch (error: any) {
         console.error("Camera initialization failed:", error)
         let errorMessage = "Camera access failed"
-        
-        if (error.name === 'NotAllowedError') {
+
+        if (error.name === "NotAllowedError") {
           errorMessage = "Camera permission denied. Please allow camera access and try again."
-        } else if (error.name === 'NotFoundError') {
+        } else if (error.name === "NotFoundError") {
           errorMessage = "No camera found on this device."
-        } else if (error.name === 'NotReadableError') {
+        } else if (error.name === "NotReadableError") {
           errorMessage = "Camera is being used by another application."
         }
-        
+
         if (isMounted) {
           setCameraError(errorMessage)
           onError(errorMessage)
@@ -124,55 +132,53 @@ const QrReader: React.FC<QrReaderProps> = ({ onResult, onError, constraints }) =
     const video = videoRef.current
     const canvas = canvasRef.current
 
-    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
+    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA || !isScanning) {
       return
     }
 
-    const context = canvas.getContext('2d')
+    const context = canvas.getContext("2d")
     if (!context) return
 
-    // Set canvas dimensions to match video
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    // Match canvas size to the current video frame
+    canvas.width = video.videoWidth || 640
+    canvas.height = video.videoHeight || 480
 
-    // Draw current video frame to canvas
+    // Draw the current frame to the canvas
     context.drawImage(video, 0, 0, canvas.width, canvas.height)
 
     try {
-      // Try to use the BarcodeDetector API if available (modern browsers)
-      if ('BarcodeDetector' in window) {
-        // @ts-ignore - BarcodeDetector is not in TypeScript definitions yet
-        const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] })
+      // Prefer native detector when supported
+      if ("BarcodeDetector" in window) {
+        // @ts-ignore - BarcodeDetector may not be in TS lib
+        const barcodeDetector = new (window as any).BarcodeDetector({ formats: ["qr_code"] })
         const barcodes = await barcodeDetector.detect(canvas)
-        
+
         if (barcodes.length > 0) {
-          const qrCode = barcodes[0]
-          console.log('QR Code detected:', qrCode.rawValue)
-          onResult(qrCode.rawValue)
-          cleanup() // Stop scanning after successful detection
-          return
-        }
-      } else {
-        // Fallback: Try to detect simple patterns or use alternative detection
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
-        
-        // Try to use jsQR library if available globally
-        // @ts-ignore
-        if (typeof jsQR !== 'undefined') {
-          // @ts-ignore
-          const code = jsQR(imageData.data, imageData.width, imageData.height)
-          if (code) {
-            console.log('QR Code detected with jsQR:', code.data)
-            onResult(code.data)
-            cleanup() // Stop scanning after successful detection
+          const value = barcodes[0].rawValue || ""
+          if (value) {
+            // Stop scanning to prevent duplicate submissions
+            setIsScanning(false)
+            onResult(value)
+            cleanup()
             return
           }
         }
       }
-    } catch (error: any) {
-      // Don't spam errors for failed detection attempts
-      if (!error.message?.includes('No QR code found')) {
-        console.error('QR detection error:', error)
+
+      // Fallback to jsQR for browsers without BarcodeDetector (e.g., iOS Safari)
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
+      const code = jsQR(imageData.data, imageData.width, imageData.height)
+      if (code && code.data) {
+        setIsScanning(false)
+        onResult(code.data)
+        cleanup()
+        return
+      }
+    } catch (err: any) {
+      const msg = err?.message || String(err)
+      if (!msg.includes("No QR code")) {
+        console.error("[QR detection error]", err)
+        onError?.("QR detection error")
       }
     }
   }
@@ -184,7 +190,7 @@ const QrReader: React.FC<QrReaderProps> = ({ onResult, onError, constraints }) =
     }
 
     if (stream) {
-      stream.getTracks().forEach(track => track.stop())
+      stream.getTracks().forEach((track) => track.stop())
       setStream(null)
     }
 
@@ -203,10 +209,7 @@ const QrReader: React.FC<QrReaderProps> = ({ onResult, onError, constraints }) =
       <div className="flex flex-col items-center justify-center h-64 bg-gray-900 rounded-lg p-4">
         <XCircle className="w-12 h-12 text-red-400 mb-4" />
         <p className="text-white text-center mb-4">{cameraError}</p>
-        <Button 
-          onClick={retryCamera}
-          className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded"
-        >
+        <Button onClick={retryCamera} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded">
           Try Again
         </Button>
       </div>
@@ -216,20 +219,11 @@ const QrReader: React.FC<QrReaderProps> = ({ onResult, onError, constraints }) =
   return (
     <div className="relative w-full h-full bg-black rounded-lg overflow-hidden min-h-[250px]">
       {/* Video element for camera feed */}
-      <video
-        ref={videoRef}
-        className="w-full h-full object-cover"
-        autoPlay
-        playsInline
-        muted
-      />
-      
+      <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
+
       {/* Hidden canvas for QR code detection */}
-      <canvas
-        ref={canvasRef}
-        className="hidden"
-      />
-      
+      <canvas ref={canvasRef} className="hidden" />
+
       {/* Scanning overlay */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="w-48 h-48 border-2 border-white rounded-lg opacity-70">
@@ -768,15 +762,16 @@ export default function OilProClient() {
     setScanResult(null)
     setScannedData(null)
     setScannerActive(true)
-    setScannerKey(prev => prev + 1) // Force re-render of scanner
+    setScannerKey((prev) => prev + 1) // Force re-render of scanner
   }
 
   const handleQRScan = async (qrData: string) => {
     console.log("[QR Scanner] Raw QR data received:", qrData)
-    
+
+    setScannedData(qrData)
     // Stop the scanner immediately after successful scan
     setScannerActive(false)
-    
+
     // Process the QR code immediately
     setIsSubmitting(true)
     try {
@@ -817,7 +812,7 @@ export default function OilProClient() {
   }
 
   const handleQRError = (error: string) => {
-    if (!error.includes('NotFoundException') && !error.includes('Camera')) {
+    if (!error.includes("NotFoundException") && !error.includes("Camera")) {
       console.log("QR scan error:", error)
     }
   }
@@ -826,7 +821,7 @@ export default function OilProClient() {
     setScanResult(null)
     setScannedData(null)
     setScannerActive(true)
-    setScannerKey(prev => prev + 1) // Force re-render
+    setScannerKey((prev) => prev + 1) // Force re-render
   }
 
   const handleRedeem = (scheme: Scheme) => {
@@ -1007,10 +1002,11 @@ export default function OilProClient() {
                           <Button
                             onClick={() => handleRedeem(scheme)}
                             disabled={!isSignedIn || !canRedeem}
-                            className={`w-full rounded-lg font-bold py-2 sm:py-3 text-xs sm:text-sm transition-colors duration-200 ${canRedeem
-                              ? "bg-[#FF6F00] text-white hover:bg-[#00B4D8]"
-                              : "bg-[#B0B0B0] text-white cursor-not-allowed"
-                              }`}
+                            className={`w-full rounded-lg font-bold py-2 sm:py-3 text-xs sm:text-sm transition-colors duration-200 ${
+                              canRedeem
+                                ? "bg-[#FF6F00] text-white hover:bg-[#00B4D8]"
+                                : "bg-[#B0B0B0] text-white cursor-not-allowed"
+                            }`}
                           >
                             {!isSignedIn ? (
                               <div className="flex items-center justify-center space-x-1 sm:space-x-2">
@@ -1079,16 +1075,10 @@ export default function OilProClient() {
 
           <div className="flex flex-col gap-2">
             <h4 className="text-[#FFFFFF] font-semibold text-base sm:text-lg">Contact</h4>
-            <a
-              href="tel:+919896089897"
-              className="text-blue-500 text-sm hover:text-white font-bold underline"
-            >
+            <a href="tel:+919896089897" className="text-blue-500 text-sm hover:text-white font-bold underline">
               +91 98960 89897
             </a>
-            <a
-              href="tel:+917015938614"
-              className="text-blue-500 text-sm hover:text-white font-bold underline"
-            >
+            <a href="tel:+917015938614" className="text-blue-500 text-sm hover:text-white font-bold underline">
               +91 70159 38614
             </a>
           </div>
@@ -1155,8 +1145,9 @@ export default function OilProClient() {
                     )}
                     <div>
                       <h3
-                        className={`text-lg sm:text-xl font-bold mb-2 sm:mb-3 ${scanResult.errorType === "already_scanned" ? "text-yellow-400" : "text-[#D32F2F]"
-                          }`}
+                        className={`text-lg sm:text-xl font-bold mb-2 sm:mb-3 ${
+                          scanResult.errorType === "already_scanned" ? "text-yellow-400" : "text-[#D32F2F]"
+                        }`}
                       >
                         {scanResult.errorType === "already_scanned" ? "Already Redeemed" : "Error"}
                       </h3>
@@ -1188,9 +1179,7 @@ export default function OilProClient() {
             <div className="space-y-4 sm:space-y-6">
               <div className="text-center">
                 <Loader2 className="w-16 h-16 sm:w-20 sm:h-20 animate-spin text-blue-400 mx-auto mb-4" />
-                <h3 className="text-lg sm:text-xl font-bold text-[#FFFFFF] mb-2 sm:mb-3">
-                  Processing QR Code...
-                </h3>
+                <h3 className="text-lg sm:text-xl font-bold text-[#FFFFFF] mb-2 sm:mb-3">Processing QR Code...</h3>
                 <p className="text-[#B0B0B0] font-medium text-sm sm:text-base">
                   Please wait while we validate your QR code
                 </p>

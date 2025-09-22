@@ -19,6 +19,8 @@ import {
   Star,
   Gift,
   Users,
+  LogOut,
+  ChevronDown,
 } from "lucide-react"
 
 // Types
@@ -142,7 +144,7 @@ class Html5QrcodeScanner implements QRScanner {
 
         // Force back camera on mobile devices
         if (isMobile) {
-          config.cameraIdOrConfig = { 
+          config.cameraIdOrConfig = {
             facingMode: { exact: "environment" } // Use exact to force back camera
           }
         }
@@ -409,6 +411,8 @@ export default function OilProClient() {
   const [scannedData, setScannedData] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const scannerRef = useRef<QRScanner | null>(null)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
 
   const fetchSchemes = async (page = 1) => {
     setSchemesLoading(true)
@@ -444,6 +448,28 @@ export default function OilProClient() {
   useEffect(() => {
     fetchSchemes()
   }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
+
+  const toggleProfileMenu = () => {
+    setProfileMenuOpen(!profileMenuOpen)
+  }
+
+  const handleLogoutClick = async () => {
+    setProfileMenuOpen(false)
+    await handleLogout()
+  }
 
   const handleAuth = async () => {
     setIsLoading(true)
@@ -884,17 +910,36 @@ export default function OilProClient() {
               </Button>
 
               {isSignedIn && user ? (
-                <button
-                  onClick={handleLogout}
-                  className="text-[#B0B0B0] hover:text-[#FFFFFF] transition-all duration-300 bg-[#FFFFFF]/5 hover:bg-[#FFFFFF]/10 rounded-xl sm:rounded-2xl px-2 sm:px-4 py-1 sm:py-2 hover:scale-105"
-                >
-                  <div className="flex items-center space-x-1 sm:space-x-2">
+                <div className="relative" ref={profileMenuRef}>
+                  <button
+                    onClick={toggleProfileMenu}
+                    className="text-[#B0B0B0] hover:text-[#FFFFFF] transition-all duration-300 bg-[#FFFFFF]/5 hover:bg-[#FFFFFF]/10 rounded-xl sm:rounded-2xl px-2 sm:px-4 py-1 sm:py-2 hover:scale-105 flex items-center space-x-1 sm:space-x-2"
+                  >
                     <div className="w-4 h-4 sm:w-6 sm:h-6 bg-[#00B4D8]/20 rounded-full flex items-center justify-center">
                       <Users className="w-2 h-2 sm:w-3 sm:h-3" />
                     </div>
                     <span className="font-medium text-xs sm:text-base hidden sm:inline">{user.name}</span>
-                  </div>
-                </button>
+                    <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform duration-200 ${profileMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Profile Dropdown Menu */}
+                  {profileMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-48 bg-[#1A1A2E] border border-[#FF6F00]/20 rounded-lg shadow-lg z-50 py-1">
+                      <div className="px-4 py-2 border-b border-[#FF6F00]/10">
+                        <p className="text-sm font-medium text-[#FFFFFF]">{user.name}</p>
+                        <p className="text-xs text-[#B0B0B0]">{user.username}</p>
+                        <p className="text-xs text-[#FF6F00] font-bold mt-1">{user.points} points</p>
+                      </div>
+                      <button
+                        onClick={handleLogoutClick}
+                        className="w-full flex items-center px-4 py-2 text-sm text-[#B0B0B0] hover:text-[#FFFFFF] hover:bg-[#FF6F00]/10 transition-colors duration-200"
+                      >
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <button
                   onClick={() => setAuthDialog(true)}

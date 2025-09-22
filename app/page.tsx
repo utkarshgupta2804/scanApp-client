@@ -1040,7 +1040,7 @@ export default function OilProClient() {
         </section>
       </main>
 
-      <footer className="mt-20 sm:mt-20 border-t border-[#FF6F00]/20 bg-[#1A1A2E]">
+      {/* <footer className="mt-20 sm:mt-20 border-t border-[#FF6F00]/20 bg-[#1A1A2E]">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 sm:py-10 grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
           <div className="flex flex-col gap-2">
             <h3 className="text-[#FFFFFF] font-semibold text-base sm:text-lg">Sri Ganesh Agencies</h3>
@@ -1080,7 +1080,7 @@ export default function OilProClient() {
             </div>
           </div>
         </div>
-      </footer>
+      </footer> */}
 
       {/* Enhanced QR Scanner Dialog - Mobile Optimized */}
       <Dialog open={scannerDialog} onOpenChange={handleScannerDialogChange}>

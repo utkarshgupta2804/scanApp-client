@@ -19,8 +19,6 @@ import {
   Star,
   Gift,
   Users,
-  Mail,
-  ArrowLeft,
 } from "lucide-react"
 
 // Types
@@ -28,7 +26,8 @@ interface User {
   _id: string
   name: string
   username: string
-  email: string
+  phone: string
+  email?: string
   city: string
   points: number
 }
@@ -37,16 +36,8 @@ interface AuthForm {
   name: string
   city: string
   username: string
+  phone: string
   email: string
-  password: string
-  confirmPassword: string
-}
-
-interface ForgotPasswordForm {
-  email: string
-}
-
-interface ResetPasswordForm {
   password: string
   confirmPassword: string
 }
@@ -180,7 +171,6 @@ class Html5QrcodeScanner implements QRScanner {
     }
   }
 }
-
 
 // Declare global Html5QrcodeScanner
 declare global {
@@ -331,7 +321,7 @@ class ApiService {
     }
   }
 
-  static async register(userData: { name: string; city: string; username: string; email: string; password: string }) {
+  static async register(userData: { name: string; city: string; username: string; phone: string; email?: string; password: string }) {
     const response = await this.request("/register", {
       method: "POST",
       body: JSON.stringify(userData),
@@ -372,20 +362,6 @@ class ApiService {
     }
   }
 
-  static async forgotPassword(email: string) {
-    return this.request("/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    })
-  }
-
-  static async resetPassword(token: string, password: string) {
-    return this.request(`/reset-password/${token}`, {
-      method: "POST",
-      body: JSON.stringify({ password }),
-    })
-  }
-
   static async getProfile() {
     return this.request("/profile")
   }
@@ -422,6 +398,7 @@ export default function OilProClient() {
     name: "",
     city: "",
     username: "",
+    phone: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -432,11 +409,6 @@ export default function OilProClient() {
   const [scannedData, setScannedData] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const scannerRef = useRef<QRScanner | null>(null)
-  const [forgotPasswordDialog, setForgotPasswordDialog] = useState(false)
-  const [forgotPasswordForm, setForgotPasswordForm] = useState<ForgotPasswordForm>({ email: "" })
-  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
-  const [forgotPasswordError, setForgotPasswordError] = useState("")
-  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState("")
 
   const fetchSchemes = async (page = 1) => {
     setSchemesLoading(true)
@@ -491,14 +463,21 @@ export default function OilProClient() {
           setAuthError("Username is required")
           return
         }
-        if (!authForm.email.trim()) {
-          setAuthError("Email is required")
+        if (!authForm.phone.trim()) {
+          setAuthError("Phone number is required")
           return
         }
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(authForm.email)) {
-          setAuthError("Please enter a valid email address")
+        const phoneRegex = /^[0-9]{10}$/
+        if (!phoneRegex.test(authForm.phone)) {
+          setAuthError("Please enter a valid 10-digit phone number")
           return
+        }
+        if (authForm.email.trim()) {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+          if (!emailRegex.test(authForm.email)) {
+            setAuthError("Please enter a valid email address")
+            return
+          }
         }
         if (!authForm.password) {
           setAuthError("Password is required")
@@ -509,13 +488,20 @@ export default function OilProClient() {
           return
         }
 
-        await ApiService.register({
+        const registerData: any = {
           name: authForm.name,
           city: authForm.city,
           username: authForm.username,
-          email: authForm.email,
+          phone: authForm.phone,
           password: authForm.password,
-        })
+        }
+
+        // Only add email if it's not empty
+        if (authForm.email.trim()) {
+          registerData.email = authForm.email
+        }
+
+        await ApiService.register(registerData)
 
         const userData = await ApiService.getProfile()
         setUser(userData)
@@ -524,7 +510,7 @@ export default function OilProClient() {
         resetAuthForm()
       } else {
         if (!authForm.username.trim()) {
-          setAuthError("Email or username is required")
+          setAuthError("Email, username, or phone is required")
           return
         }
         if (!authForm.password) {
@@ -567,53 +553,12 @@ export default function OilProClient() {
       name: "",
       city: "",
       username: "",
+      phone: "",
       email: "",
       password: "",
       confirmPassword: "",
     })
     setAuthError("")
-  }
-
-  const handleForgotPassword = async () => {
-    setForgotPasswordLoading(true)
-    setForgotPasswordError("")
-    setForgotPasswordSuccess("")
-
-    try {
-      if (!forgotPasswordForm.email.trim()) {
-        setForgotPasswordError("Email is required")
-        return
-      }
-
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(forgotPasswordForm.email)) {
-        setForgotPasswordError("Please enter a valid email address")
-        return
-      }
-
-      const result = await ApiService.forgotPassword(forgotPasswordForm.email)
-      setForgotPasswordSuccess("Password reset email sent successfully!")
-      setForgotPasswordForm({ email: "" })
-    } catch (error: any) {
-      setForgotPasswordError(error.message || "Failed to send reset email")
-    } finally {
-      setForgotPasswordLoading(false)
-    }
-  }
-
-  const openForgotPasswordDialog = () => {
-    setAuthDialog(false)
-    setForgotPasswordDialog(true)
-    setForgotPasswordError("")
-    setForgotPasswordSuccess("")
-  }
-
-  const backToLogin = () => {
-    setForgotPasswordDialog(false)
-    setAuthDialog(true)
-    setForgotPasswordForm({ email: "" })
-    setForgotPasswordError("")
-    setForgotPasswordSuccess("")
   }
 
   const startScanning = () => {
@@ -1125,8 +1070,6 @@ export default function OilProClient() {
             >
               +91 70159 38614
             </a>
-
-
           </div>
 
           <div className="flex items-start sm:items-center sm:justify-end">
@@ -1317,10 +1260,19 @@ export default function OilProClient() {
                     disabled={isLoading}
                   />
                   <Input
+                    type="tel"
+                    value={authForm.phone}
+                    onChange={(e) => setAuthForm({ ...authForm, phone: e.target.value })}
+                    placeholder="Your phone number (10 digits)"
+                    className="border-[#FF6F00]/20 rounded-lg bg-[#FFFFFF]/5 backdrop-blur-sm font-medium text-[#FFFFFF] placeholder:text-[#B0B0B0] text-sm sm:text-base h-10 sm:h-12"
+                    disabled={isLoading}
+                    maxLength={10}
+                  />
+                  <Input
                     type="email"
                     value={authForm.email}
                     onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
-                    placeholder="Your email address"
+                    placeholder="Your email address (optional)"
                     className="border-[#FF6F00]/20 rounded-lg bg-[#FFFFFF]/5 backdrop-blur-sm font-medium text-[#FFFFFF] placeholder:text-[#B0B0B0] text-sm sm:text-base h-10 sm:h-12"
                     disabled={isLoading}
                   />
@@ -1330,7 +1282,7 @@ export default function OilProClient() {
                 type="text"
                 value={authForm.username}
                 onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })}
-                placeholder={isSignUp ? "Username" : "Email or Username"}
+                placeholder={isSignUp ? "Username" : "Email, Username, or Phone"}
                 className="border-[#FF6F00]/20 rounded-lg bg-[#FFFFFF]/5 backdrop-blur-sm font-medium text-[#FFFFFF] placeholder:text-[#B0B0B0] text-sm sm:text-base h-10 sm:h-12"
                 disabled={isLoading}
               />
@@ -1380,87 +1332,6 @@ export default function OilProClient() {
             >
               {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
             </button>
-            {!isSignUp && (
-              <button
-                onClick={openForgotPasswordDialog}
-                disabled={isLoading}
-                className="text-xs sm:text-sm text-[#FF6F00] hover:text-[#D45D00] transition-colors font-medium"
-              >
-                Forgot your password?
-              </button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Forgot Password Dialog */}
-      <Dialog open={forgotPasswordDialog} onOpenChange={setForgotPasswordDialog}>
-        <DialogContent className="sm:max-w-md bg-[#1A1A2E]/95 backdrop-blur-sm border border-[#FF6F00]/20 rounded-3xl shadow-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-[#FFFFFF] flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-[#FF6F00] to-[#D45D00] rounded-2xl flex items-center justify-center">
-                <Mail className="w-5 h-5 text-[#1A1A2E]" />
-              </div>
-              <span>Reset Password</span>
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            {forgotPasswordError && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm font-medium">
-                {forgotPasswordError}
-              </div>
-            )}
-
-            {forgotPasswordSuccess && (
-              <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 text-green-400 text-sm font-medium">
-                {forgotPasswordSuccess}
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <p className="text-[#B0B0B0] text-sm">
-                Enter your email address and we'll send you a link to reset your password.
-              </p>
-
-              <Input
-                type="email"
-                value={forgotPasswordForm.email}
-                onChange={(e) => setForgotPasswordForm({ email: e.target.value })}
-                placeholder="Your email address"
-                className="border-[#FF6F00]/20 rounded-lg bg-[#FFFFFF]/5 backdrop-blur-sm font-medium text-[#FFFFFF] placeholder:text-[#B0B0B0]"
-                disabled={forgotPasswordLoading}
-              />
-            </div>
-
-            <div className="flex space-x-3">
-              <Button
-                onClick={backToLogin}
-                disabled={forgotPasswordLoading}
-                className="flex-1 bg-[#B0B0B0] text-[#FFFFFF] hover:bg-[#737373] border-0 rounded-lg font-bold py-3"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-
-              <Button
-                onClick={handleForgotPassword}
-                disabled={forgotPasswordLoading}
-                className="flex-1 bg-[#FF6F00] text-[#1A1A2E] hover:bg-[#D45D00] border-0 rounded-lg font-bold py-3"
-              >
-                {forgotPasswordLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="w-4 h-4 mr-2" />
-                    Send Reset Link
-                  </>
-                )}
-              </Button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>
